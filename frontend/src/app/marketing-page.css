@@ -1,0 +1,542 @@
+/* Shared design language for scrollable marketing pages (platform, scanning,
+   sovereignty, contact, legal) — same palette/type as the hero, independent
+   of the hero's viewport-locked --u scaling system since these pages scroll. */
+
+:root {
+  --m-bg: #000000;
+  --m-ink: #ffffff;
+  --m-ink-muted: #ededed;
+  --m-dim: rgba(255, 255, 255, 0.62);
+  --m-dimmer: rgba(255, 255, 255, 0.4);
+  --m-line: rgba(255, 255, 255, 0.12);
+  --m-panel: #181818;
+  --m-white-btn: #fdfdfd;
+  --m-btn-ink: #050505;
+  --m-glass: rgba(0, 0, 0, 0.78);
+  --m-glass-line: rgba(255, 255, 255, 0.09);
+  --m-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mpage {
+  min-height: 100vh;
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-family: var(--m-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------------------------------------------------------------- */
+/* Nav                                                                */
+/* ---------------------------------------------------------------- */
+.mnav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px clamp(20px, 4vw, 50px);
+  background: rgba(2, 2, 4, 0.72);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--m-line);
+}
+.mlogo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mlogo img {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+.mlogo-divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.mlogo-product {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: var(--m-ink-muted);
+}
+.mnav-links {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+.mnav-links a {
+  color: var(--m-ink-muted);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+  transition: color 0.18s ease;
+}
+.mnav-links a:hover {
+  color: #fff;
+}
+.mnav-links a[aria-current='page'] {
+  color: #fff;
+}
+.mnav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.mbtn-login {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 17px;
+  background: var(--m-panel);
+  color: #e8e8e8;
+  font-size: 13px;
+  font-weight: 500;
+}
+.mbtn-login:hover {
+  background: #232323;
+  color: #fff;
+}
+.mbtn-start {
+  height: 34px;
+  padding: 0 16px 0 18px;
+  border-radius: 17px;
+  background: var(--m-white-btn);
+  color: var(--m-btn-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.mbtn-start:hover {
+  background: #fff;
+}
+.marw {
+  width: 11px;
+  height: 9px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.mburger {
+  display: none;
+  width: 38px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  background: var(--m-panel);
+  border-radius: 15px;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.mburger span {
+  display: block;
+  width: 15px;
+  height: 1.5px;
+  background: #ededed;
+  border-radius: 2px;
+  position: relative;
+}
+.mburger span::before,
+.mburger span::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 15px;
+  height: 1.5px;
+  background: #ededed;
+  border-radius: 2px;
+}
+.mburger span::before {
+  top: -5px;
+}
+.mburger span::after {
+  top: 5px;
+}
+
+@media (max-width: 760px) {
+  .mnav-links,
+  .mnav-actions {
+    display: none;
+  }
+  .mburger {
+    display: flex;
+  }
+}
+
+.mmenu {
+  display: none;
+  flex-direction: column;
+  position: sticky;
+  top: 69px;
+  z-index: 19;
+  background: rgba(8, 8, 10, 0.96);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--m-line);
+  padding: 8px 12px 14px;
+}
+.mmenu.open {
+  display: flex;
+}
+.mmenu a {
+  color: var(--m-ink-muted);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 13px 10px;
+  border-radius: 10px;
+}
+.mmenu a:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.mmenu .mdivider {
+  height: 1px;
+  background: var(--m-line);
+  margin: 6px 10px;
+}
+.mmenu .mstart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--m-white-btn);
+  color: var(--m-btn-ink);
+  margin: 6px 10px 0;
+  padding: 13px 16px;
+  border-radius: 14px;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- */
+/* Hero block (per-page eyebrow / title / lede)                       */
+/* ---------------------------------------------------------------- */
+.page-hero {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: clamp(56px, 9vw, 120px) clamp(20px, 5vw, 60px) clamp(24px, 4vw, 40px);
+}
+.page-eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-dim);
+}
+.page-title {
+  margin: 16px 0 0;
+  font-weight: 500;
+  font-size: clamp(34px, 5.2vw, 60px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  color: var(--m-ink);
+}
+.page-lede {
+  margin: 20px 0 0;
+  max-width: 620px;
+  font-weight: 300;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.55;
+  color: #f0f0f0;
+}
+.page-updated {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--m-dimmer);
+}
+
+/* ---------------------------------------------------------------- */
+/* Content sections                                                   */
+/* ---------------------------------------------------------------- */
+.page-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 60px) clamp(80px, 10vw, 140px);
+}
+
+.feature-grid {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.feature-grid li {
+  padding: 28px 0;
+  border-top: 1px solid var(--m-line);
+}
+.feature-grid li:last-child {
+  border-bottom: 1px solid var(--m-line);
+}
+.feature-grid h2 {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.feature-grid p {
+  margin: 0;
+  max-width: 620px;
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--m-dim);
+}
+
+.legal-doc {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.legal-doc h2 {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 18px;
+}
+.legal-doc p {
+  margin: 0;
+  max-width: 680px;
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--m-dim);
+}
+
+.contact-grid {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.contact-grid li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 18px 0;
+  border-top: 1px solid var(--m-line);
+}
+.contact-grid li:last-child {
+  border-bottom: 1px solid var(--m-line);
+}
+.contact-grid span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--m-dimmer);
+  min-width: 110px;
+}
+.contact-grid a {
+  font-size: 17px;
+  color: var(--m-ink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
+}
+.contact-grid a:hover {
+  color: var(--m-dim);
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 56px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--m-dim);
+  text-decoration: none;
+}
+.back-link:hover {
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- */
+/* Footer                                                             */
+/* ---------------------------------------------------------------- */
+.mfooter {
+  border-top: 1px solid var(--m-line);
+  padding: 24px clamp(20px, 5vw, 60px);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--m-dim);
+}
+.mfooter a {
+  color: var(--m-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.mfooter a:hover {
+  color: var(--m-dim);
+}
+
+/* ---------------------------------------------------------------- */
+/* Console login — same dark/mono language as the landing page         */
+/* ---------------------------------------------------------------- */
+.login-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-family: var(--m-font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  margin-bottom: 28px;
+}
+.login-logo img {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+.login-logo .mlogo-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.login-logo .mlogo-product {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  color: var(--m-ink-muted);
+}
+.login-chip {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.09);
+  padding: 8px 14px;
+  margin-bottom: 20px;
+}
+.login-title {
+  margin: 0;
+  font-weight: 500;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+.login-sub {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--m-dim);
+}
+.login-form {
+  width: 100%;
+  margin-top: 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.login-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 0;
+  padding: 0 2px 14px;
+  font-family: var(--m-font);
+  font-weight: 300;
+  font-size: 16px;
+  color: var(--m-ink);
+  transition: border-color 0.18s ease;
+}
+.login-input::placeholder {
+  color: var(--m-dim);
+}
+.login-input:focus {
+  outline: none;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+.login-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 16px 20px;
+  background: var(--m-white-btn);
+  color: var(--m-btn-ink);
+  font-family: var(--m-font);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.login-btn:hover {
+  background: #fff;
+}
+.login-error {
+  font-size: 13px;
+  color: #ff8a8a;
+}
+.login-hint {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--m-dimmer);
+}
+.login-back {
+  margin-top: 40px;
+  font-size: 13px;
+  color: var(--m-dim);
+  text-decoration: none;
+}
+.login-back:hover {
+  color: #fff;
+}
+
+.mbtn:focus-visible,
+.mnav-links a:focus-visible,
+.mmenu a:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+  border-radius: 10px;
+}
