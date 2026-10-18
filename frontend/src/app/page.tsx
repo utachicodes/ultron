@@ -355,14 +355,11 @@ export default function LandingPage() {
         </header>
 
         <nav className="menu" id="menu" aria-label="Mobile">
-          {NAV_LINKS.map((l) => (
+          {NAV_LINKS.filter((l) => l.href !== '/contact').map((l) => (
             <a key={l.href} href={l.href}>{l.label}</a>
           ))}
           <div className="divider" />
           <a href="/console">Login</a>
-          <a href="/console" className="m-start">
-            Get Started {ARROW}
-          </a>
         </nav>
 
         <div className="hero-inner">
