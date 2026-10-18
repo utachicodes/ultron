@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./ultorn.db
+      - SECRET_KEY=change-me-in-production
+      - AI_PROVIDER=anthropic
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SCANNER_TIMEOUT=300
+    volumes:
+      - ./backend:/app
+      - ultorn_data:/app/data
+    depends_on:
+      - worker
+
+  worker:
+    build: ./backend
+    command: python -m app.worker
+    environment:
+      - DATABASE_URL=sqlite:///./ultorn.db
+      - SECRET_KEY=change-me-in-production
+      - SCANNER_TIMEOUT=300
+    volumes:
+      - ./backend:/app
+      - ultorn_data:/app/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  ultorn_data:
