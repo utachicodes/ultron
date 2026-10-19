@@ -55,6 +55,8 @@
   .hidden { display: none !important; }
 
   .text-sm { font-size: 0.875rem; }
+  .text-xs { font-size: 0.75rem; }
+  .bg-surface { background: var(--bg-surface); }
   .text-base { font-size: 1rem; }
   .text-lg { font-size: 1.125rem; }
   .text-xl { font-size: 1.25rem; }
@@ -444,7 +446,25 @@
   }
   .sidebar-item:hover { background: var(--glass); color: var(--text-main); }
   .sidebar-item.active { background: var(--glass); color: var(--accent); border-left: 3px solid var(--accent); }
+  .sidebar-item { cursor: pointer; }
   .main-content { padding: 2rem; overflow-y: auto; }
+
+  /* Console views */
+  .view { display: none; }
+  .view.active { display: block; }
+  .page-title { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.35rem; }
+  .page-sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .split { display: grid; grid-template-columns: 340px 1fr; gap: 1rem; }
+  .list-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.85rem 0; border-bottom: 1px solid var(--border);
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-title { font-weight: 600; font-size: 0.9rem; }
+  .list-sub { color: var(--text-muted); font-size: 0.78rem; }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.85rem; }
+  .toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-size: 0.82rem; color: var(--text-muted); }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
 
   /* =========================================
      RESPONSIVE
@@ -502,145 +522,382 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div class="sidebar-item active">
-        <span>🛡️</span> Dashboard
-      </div>
-      <div class="sidebar-item">
-        <span>🏢</span> Clients
-      </div>
-      <div class="sidebar-item">
-        <span>🎯</span> Scopes
-      </div>
-      <div class="sidebar-item">
-        <span>🔍</span> Scans
-      </div>
-      <div class="sidebar-item">
-        <span>⚠️</span> Findings
-      </div>
-      <div class="sidebar-item">
-        <span>📄</span> Reports
-      </div>
-      <div class="sidebar-item">
-        <span>📊</span> Monitors
-      </div>
-      <div class="sidebar-item">
-        <span>🚨</span> Alerts
-      </div>
-      <div class="sidebar-item">
-        <span>💻</span> Code Scans
-      </div>
-      <div class="sidebar-item">
-        <span>🤖</span> AI Guard
-      </div>
-      <div class="sidebar-item">
-        <span>📋</span> Compliance
-      </div>
-      <div class="sidebar-item">
-        <span>📜</span> Audit Log
-      </div>
+      <div class="sidebar-item active" data-view="dashboard"><span>🛡️</span> Dashboard</div>
+      <div class="sidebar-item" data-view="clients"><span>🏢</span> Clients</div>
+      <div class="sidebar-item" data-view="scans"><span>🔍</span> Scans</div>
+      <div class="sidebar-item" data-view="findings"><span>⚠️</span> Findings</div>
+      <div class="sidebar-item" data-view="reports"><span>📄</span> Reports</div>
+      <div class="sidebar-item" data-view="monitors"><span>📊</span> Monitors</div>
+      <div class="sidebar-item" data-view="alerts"><span>🚨</span> Alerts</div>
+      <div class="sidebar-item" data-view="schedules"><span>🗓️</span> Scan Schedules</div>
+      <div class="sidebar-item" data-view="code-scans"><span>💻</span> Code Scans</div>
+      <div class="sidebar-item" data-view="ai"><span>🤖</span> AI Guard</div>
+      <div class="sidebar-item" data-view="compliance"><span>📋</span> Compliance</div>
+      <div class="sidebar-item" data-view="audit"><span>📜</span> Audit Log</div>
     </nav>
   </aside>
 
   <main class="main-content">
-    <!-- Stats Row -->
-    <div class="grid grid-cols-4 mb-4">
-      <div class="stat-card">
-        <div class="stat-value">4</div>
-        <div class="stat-label">Total Scans</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-danger">0</div>
-        <div class="stat-label">Critical Findings</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-warning">0</div>
-        <div class="stat-label">High Findings</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-success">3</div>
-        <div class="stat-label">Clients</div>
-      </div>
-    </div>
+    <!-- ============ DASHBOARD ============ -->
+    <div class="view active" id="view-dashboard">
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-sub">Live posture across scanning, continuous monitoring, and AI code review.</p>
 
-    <!-- Recent Scans -->
-    <div class="section-header mb-2">
-      <h2 class="section-title">Recent Scans</h2>
-      <div class="flex justify-between items-center mb-2">
-        <p class="text-muted text-sm">Vulnerability assessments with full data extraction.</p>
+      <div class="grid grid-cols-4 mb-4">
+        <div class="stat-card">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Total Scans</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value text-danger">2</div>
+          <div class="stat-label">Critical Findings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value text-warning">3</div>
+          <div class="stat-label">Open Alerts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value text-success">5</div>
+          <div class="stat-label">Active Monitors</div>
+        </div>
+      </div>
+
+      <div class="section-header mb-2">
+        <h2 class="section-title">Recent Scans</h2>
         <button class="btn btn-sm btn-primary">Run New Scan</button>
       </div>
-    </div>
-    <div class="card mb-4">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Findings</th>
-              <th>Critical</th>
-              <th>High</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Sandbox Bank</strong><br><span class="text-muted text-xs">security@sandbox.sn</span></td>
-              <td><span class="badge badge-info">Vulnerability</span></td>
-              <td><span class="text-success">●</span> Completed</td>
-              <td>4</td>
-              <td>0</td>
-              <td>0</td>
-              <td><button class="btn btn-sm btn-secondary">View</button></td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="card mb-4">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Findings</th>
+                <th>Critical</th>
+                <th>High</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Sahel Bank</strong><br><span class="text-muted text-xs">security@sahelbank.sn</span></td>
+                <td><span class="badge badge-info">Vulnerability</span></td>
+                <td><span class="text-success">●</span> Completed</td>
+                <td>5</td>
+                <td><span class="text-danger font-semibold">1</span></td>
+                <td>1</td>
+                <td><button class="btn btn-sm btn-secondary">View</button></td>
+              </tr>
+              <tr>
+                <td><strong>Sonatel Mobile</strong><br><span class="text-muted text-xs">soc@sonatel.sn</span></td>
+                <td><span class="badge badge-info">Vulnerability</span></td>
+                <td><span class="text-success">●</span> Completed</td>
+                <td>4</td>
+                <td><span class="text-danger font-semibold">1</span></td>
+                <td>2</td>
+                <td><button class="btn btn-sm btn-secondary">View</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 mb-4">
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Open Alerts</h3>
+          <div class="list-row">
+            <div><div class="list-title">Leaked credential on api.sonatel.sn</div><div class="list-sub">leaked_cred · 5 min ago</div></div>
+            <span class="badge badge-critical">Critical</span>
+          </div>
+          <div class="list-row">
+            <div><div class="list-title">Server header changed on bank.sn</div><div class="list-sub">config_drift · 12 min ago</div></div>
+            <span class="badge badge-medium">Medium</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Recent Activity</h3>
+          <div class="list-row"><div><div class="list-title">complete_scan</div><div class="list-sub">scan #4 · Sahel Bank</div></div><span class="list-sub">3h ago</span></div>
+          <div class="list-row"><div><div class="list-title">run_monitor_check</div><div class="list-sub">monitor #2</div></div><span class="list-sub">12m ago</span></div>
+          <div class="list-row"><div><div class="list-title">review_finding</div><div class="list-sub">finding #9 · admin</div></div><span class="list-sub">1h ago</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-2">Non-Negotiable Design Boundaries</h2>
+        <div class="grid grid-cols-2 mt-2">
+          <div class="p-2 rounded bg-surface border">
+            <div class="text-danger font-bold mb-1">1. No Verification Gate (Sandbox)</div>
+            <div class="text-sm text-muted">Scans run on all scopes immediately — no ownership check required.</div>
+          </div>
+          <div class="p-2 rounded bg-surface border">
+            <div class="text-danger font-bold mb-1">2. Full Data Extraction</div>
+            <div class="text-sm text-muted">Banners, headers, titles, and bodies stored as unredacted evidence.</div>
+          </div>
+          <div class="p-2 rounded bg-surface border">
+            <div class="text-danger font-bold mb-1">3. No Autonomous Exploitation</div>
+            <div class="text-sm text-muted">Critical/high findings require named human analyst review.</div>
+          </div>
+          <div class="p-2 rounded bg-surface border">
+            <div class="text-danger font-bold mb-1">4. No Single AI Dependency</div>
+            <div class="text-sm text-muted">Model abstraction layer; force_local keeps prompts on-premises.</div>
+          </div>
+          <div class="p-2 rounded bg-surface border">
+            <div class="text-danger font-bold mb-1">5. Full Audit Trail</div>
+            <div class="text-sm text-muted">Every action, scan, query, and review immutably logged.</div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-3 mb-4">
-      <div class="card">
-        <h3 class="text-lg font-semibold mb-2">Add Client</h3>
-        <p class="text-muted text-sm mb-2">Onboard a new banking, telecom, or government client.</p>
-        <button class="btn btn-sm btn-secondary w-full">Create Client</button>
-      </div>
-      <div class="card">
-        <h3 class="text-lg font-semibold mb-2">Scan Target</h3>
-        <p class="text-muted text-sm mb-2">Run a vulnerability assessment on any domain or IP.</p>
-        <button class="btn btn-sm btn-secondary w-full">Start Scan</button>
-      </div>
-      <div class="card">
-        <h3 class="text-lg font-semibold mb-2">AI Guard</h3>
-        <p class="text-muted text-sm mb-2">Sanitized AI queries with sovereignty controls.</p>
-        <button class="btn btn-sm btn-secondary w-full">Query AI</button>
+    <!-- ============ CLIENTS ============ -->
+    <div class="view" id="view-clients">
+      <h1 class="page-title">Clients</h1>
+      <p class="page-sub">Onboard clients and manage their scan scopes.</p>
+      <div class="split">
+        <div class="card">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-lg font-semibold">Client List</h3>
+            <button class="btn btn-sm btn-primary">Add</button>
+          </div>
+          <div class="list-row">
+            <div><div class="list-title">Sahel Bank</div><div class="list-sub">banking · 3 scopes</div></div>
+            <span class="badge badge-info">Active</span>
+          </div>
+          <div class="list-row">
+            <div><div class="list-title">Sonatel Mobile</div><div class="list-sub">telecom · 2 scopes</div></div>
+            <span class="badge badge-info">Active</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Sahel Bank</h3>
+          <p class="text-muted text-sm mb-2">security@sahelbank.sn · +221 33 000 0000</p>
+          <div class="section-header mb-2"><h4 class="font-semibold">Scan Scopes</h4><button class="btn btn-sm btn-secondary">Add Scope</button></div>
+          <div class="list-row"><div class="list-title">bank.sn</div><span class="badge badge-low">domain</span></div>
+          <div class="list-row"><div class="list-title">portal.bank.sn</div><span class="badge badge-low">url</span></div>
+          <div class="list-row"><div class="list-title">196.207.0.10</div><span class="badge badge-low">ip</span></div>
+          <div class="alert alert-info mt-2">Sandbox mode: scopes run without ownership verification.</div>
+        </div>
       </div>
     </div>
 
-    <!-- Design Boundaries -->
-    <div class="card">
-      <h2 class="section-title mb-2">Non-Negotiable Design Boundaries</h2>
-      <div class="grid grid-cols-2 mt-2">
-        <div class="p-2 rounded bg-surface border">
-          <div class="text-danger font-bold mb-1">1. No Verification Gate (Sandbox)</div>
-          <div class="text-sm text-muted">Scans run on all scopes immediately — no ownership check required.</div>
+    <!-- ============ SCANS ============ -->
+    <div class="view" id="view-scans">
+      <h1 class="page-title">Scans</h1>
+      <p class="page-sub">Vulnerability assessments with full banner, header, and body extraction.</p>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Client</th><th>Type</th><th>Status</th><th>Started</th><th>Findings</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td>Sahel Bank</td><td>Vulnerability</td><td><span class="badge badge-low">Completed</span></td><td class="text-muted">Today 08:12</td><td>5</td><td><button class="btn btn-sm btn-secondary">Report</button></td></tr>
+              <tr><td>Sonatel Mobile</td><td>Vulnerability</td><td><span class="badge badge-low">Completed</span></td><td class="text-muted">Yesterday 17:40</td><td>4</td><td><button class="btn btn-sm btn-secondary">Report</button></td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="p-2 rounded bg-surface border">
-          <div class="text-danger font-bold mb-1">2. Full Data Extraction</div>
-          <div class="text-sm text-muted">Banners, headers, titles, and bodies stored as unredacted evidence.</div>
+      </div>
+    </div>
+
+    <!-- ============ FINDINGS ============ -->
+    <div class="view" id="view-findings">
+      <h1 class="page-title">Findings &amp; Remediation</h1>
+      <p class="page-sub">Critical and high findings require named human analyst review before remediation.</p>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Finding</th><th>Target</th><th>Severity</th><th>Status</th><th>Review</th></tr></thead>
+            <tbody>
+              <tr><td>Exposed .git directory</td><td class="text-muted">bank.sn</td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td><button class="btn btn-sm btn-primary">Attest</button></td></tr>
+              <tr><td>API key committed to public repository</td><td class="text-muted">api.sonatel.sn</td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td><button class="btn btn-sm btn-primary">Attest</button></td></tr>
+              <tr><td>Admin panel reachable without MFA</td><td class="text-muted">admin.sonatel.sn</td><td><span class="badge badge-high">High</span></td><td>Acknowledged</td><td><button class="btn btn-sm btn-secondary">Review</button></td></tr>
+              <tr><td>Missing HSTS header</td><td class="text-muted">bank.sn</td><td><span class="badge badge-medium">Medium</span></td><td>Open</td><td><button class="btn btn-sm btn-secondary">Review</button></td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="p-2 rounded bg-surface border">
-          <div class="text-danger font-bold mb-1">3. No Autonomous Exploitation</div>
-          <div class="text-sm text-muted">Critical/high findings require named human analyst review.</div>
+      </div>
+    </div>
+
+    <!-- ============ REPORTS ============ -->
+    <div class="view" id="view-reports">
+      <h1 class="page-title">Reports</h1>
+      <p class="page-sub">Plain-language reports mapped to business impact and Senegal Cyber Law 2026.</p>
+      <div class="grid grid-cols-2">
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Generate Report</h3>
+          <div class="field"><label class="form-label">Scan</label><select class="form-select"><option>Sahel Bank — Vulnerability (completed)</option><option>Sonatel Mobile — Vulnerability (completed)</option></select></div>
+          <button class="btn btn-primary w-full">Generate</button>
         </div>
-        <div class="p-2 rounded bg-surface border">
-          <div class="text-danger font-bold mb-1">4. No Single AI Dependency</div>
-          <div class="text-sm text-muted">Model abstraction layer; force_local keeps prompts on-premises.</div>
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Sahel Bank — Rating: CRITICAL</h3>
+          <p class="text-sm text-muted mb-2">This assessment identified 1 critical finding requiring immediate attention.</p>
+          <div class="alert alert-danger mb-2"><strong>A02:2021</strong> — Notify the National CERT within 72 hours.</div>
+          <div class="section-header mb-2"><h4 class="font-semibold">Recommendations</h4><button class="btn btn-sm btn-secondary">Markdown</button></div>
+          <ul class="text-sm text-muted" style="padding-left:1.25rem;">
+            <li>Address all critical findings immediately.</li>
+            <li>Rotate exposed credentials and purge source history.</li>
+            <li>Prioritize high-severity findings within 7 days.</li>
+          </ul>
         </div>
-        <div class="p-2 rounded bg-surface border">
-          <div class="text-danger font-bold mb-1">5. Full Audit Trail</div>
-          <div class="text-sm text-muted">Every action, scan, query, and review immutably logged.</div>
+      </div>
+    </div>
+
+    <!-- ============ MONITORS ============ -->
+    <div class="view" id="view-monitors">
+      <h1 class="page-title">Continuous Monitoring</h1>
+      <p class="page-sub">Anomalous access, configuration drift, leaked credentials, and policy violations.</p>
+      <div class="grid grid-cols-2">
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Create Monitor</h3>
+          <div class="field"><label class="form-label">Client</label><select class="form-select"><option>Sahel Bank</option><option>Sonatel Mobile</option></select></div>
+          <div class="field"><label class="form-label">Type</label><select class="form-select"><option>Access anomaly detection</option><option>Configuration drift</option><option>Leaked credentials</option><option>Policy violation</option></select></div>
+          <div class="field"><label class="form-label">Target</label><input class="form-input" value="https://bank.sn"></div>
+          <button class="btn btn-primary w-full">Create Monitor</button>
+        </div>
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Monitors</h3>
+          <div class="list-row"><div><div class="list-title">https://bank.sn</div><div class="list-sub">config_drift · last check 12 min ago</div></div><span class="badge badge-low">Active</span></div>
+          <div class="list-row"><div><div class="list-title">api.sonatel.sn</div><div class="list-sub">leaked_cred · last check 5 min ago</div></div><span class="badge badge-low">Active</span></div>
+          <div class="list-row"><div><div class="list-title">10.20.0.14</div><div class="list-sub">access_anomaly · paused</div></div><span class="badge badge-medium">Paused</span></div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-sm btn-primary">Run Check Now</button><button class="btn btn-sm btn-secondary">Pause</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ ALERTS ============ -->
+    <div class="view" id="view-alerts">
+      <h1 class="page-title">Monitoring Alerts</h1>
+      <p class="page-sub">3 open alert(s) need review. Acknowledge or resolve each one.</p>
+      <div class="card mb-4">
+        <div class="flex gap-2 items-center">
+          <select class="form-select" style="max-width:200px"><option>All statuses</option><option>Open</option><option>Acknowledged</option><option>Resolved</option></select>
+          <select class="form-select" style="max-width:200px"><option>All severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Alert</th><th>Severity</th><th>Status</th><th>Detected</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Leaked credential on api.sonatel.sn</strong><br><span class="text-muted text-xs">Public mirror contains a live-looking key.</span></td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td class="text-muted">5 min ago</td><td><button class="btn btn-sm btn-secondary">Acknowledge</button></td></tr>
+              <tr><td><strong>Server header changed on bank.sn</strong><br><span class="text-muted text-xs">Baseline nginx/1.24.0, observed 1.18.0.</span></td><td><span class="badge badge-medium">Medium</span></td><td>Open</td><td class="text-muted">12 min ago</td><td><button class="btn btn-sm btn-secondary">Acknowledge</button></td></tr>
+              <tr><td><strong>TLS certificate expiring in 9 days</strong><br><span class="text-muted text-xs">Automatic renewal appears to have failed.</span></td><td><span class="badge badge-high">High</span></td><td>Acknowledged</td><td class="text-muted">1h ago</td><td><button class="btn btn-sm btn-secondary">Resolve</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SCAN SCHEDULES ============ -->
+    <div class="view" id="view-schedules">
+      <h1 class="page-title">Recurring Scans</h1>
+      <p class="page-sub">Schedule assessments to run automatically against current scopes.</p>
+      <div class="card mb-4">
+        <h3 class="text-lg font-semibold mb-2">Create Schedule</h3>
+        <div class="grid grid-cols-4">
+          <div class="field"><label class="form-label">Client</label><select class="form-select"><option>Sahel Bank</option></select></div>
+          <div class="field"><label class="form-label">Scan type</label><select class="form-select"><option>Vulnerability</option><option>Full assessment</option></select></div>
+          <div class="field"><label class="form-label">Interval</label><select class="form-select"><option>Daily</option><option>Hourly</option><option>Weekly</option><option>Monthly</option></select></div>
+          <div class="field"><label class="form-label">&nbsp;</label><button class="btn btn-primary">Create</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Client</th><th>Type</th><th>Every</th><th>Next run</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td>Sahel Bank</td><td>Vulnerability</td><td>Daily</td><td class="text-muted">Tomorrow 08:00</td><td><span class="badge badge-low">Active</span></td><td><button class="btn btn-sm btn-secondary">Run now</button></td></tr>
+              <tr><td>Sonatel Mobile</td><td>Full assessment</td><td>Weekly</td><td class="text-muted">Mon 06:00</td><td><span class="badge badge-low">Active</span></td><td><button class="btn btn-sm btn-secondary">Run now</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CODE SCANS ============ -->
+    <div class="view" id="view-code-scans">
+      <h1 class="page-title">AI Code Scanning</h1>
+      <p class="page-sub">Detect hardcoded secrets, dangerous calls, and insecure defaults before code ships.</p>
+      <div class="grid grid-cols-2">
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Scan Code</h3>
+          <div class="field"><label class="form-label">Client</label><select class="form-select"><option>Sahel Bank</option></select></div>
+          <div class="field"><label class="form-label">Repository</label><input class="form-input" value="github.com/sahel-bank/mobile-api"></div>
+          <div class="field"><label class="form-label">Branch</label><input class="form-input" value="main"></div>
+          <button class="btn btn-primary w-full">Scan Code</button>
+        </div>
+        <div class="card">
+          <h3 class="text-lg font-semibold mb-2">Issues (3)</h3>
+          <div class="list-row"><div><div class="list-title">app/config.py:14</div><div class="list-sub">hardcoded_secret · API key literal</div></div><span class="badge badge-high">High</span></div>
+          <div class="list-row"><div><div class="list-title">app/utils.py:52</div><div class="list-sub">dangerous_eval · eval on request data</div></div><span class="badge badge-high">High</span></div>
+          <div class="list-row"><div><div class="list-title">app/http.py:31</div><div class="list-sub">ssl_verification_disabled</div></div><span class="badge badge-medium">Medium</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ AI GUARD ============ -->
+    <div class="view" id="view-ai">
+      <h1 class="page-title">AI Guard: Sovereignty Layer</h1>
+      <p class="page-sub">Prompts are sanitized before any external model sees them. Sensitive data stays local.</p>
+      <div class="card mb-4">
+        <h3 class="text-lg font-semibold mb-2">Send to AI</h3>
+        <textarea class="form-input" rows="4">Analyze this vulnerability for client Acme Corp at 10.0.0.5 with API key sk-12345</textarea>
+        <div class="flex gap-2 items-center mt-2">
+          <label class="toggle"><input type="checkbox" checked> Force local processing</label>
+          <button class="btn btn-sm btn-primary">Query AI</button>
+          <button class="btn btn-sm btn-secondary">Preview Sanitization</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex gap-2 items-center mb-2">
+          <span class="badge badge-low">Stayed on-premises</span>
+          <span class="badge badge-info">local-rule-based</span>
+          <span class="badge badge-low">Prompt sanitized</span>
+          <span class="badge badge-info">Query #128</span>
+        </div>
+        <p class="text-sm text-muted">[LOCAL] Vulnerability pattern detected. Recommend: patch immediately, restrict network access, and review with a human analyst before acting.</p>
+      </div>
+    </div>
+
+    <!-- ============ COMPLIANCE ============ -->
+    <div class="view" id="view-compliance">
+      <h1 class="page-title">Compliance — Senegal Cyber Law 2026</h1>
+      <p class="page-sub">Map findings to regulatory obligations, CERT windows, and sector requirements.</p>
+      <div class="grid grid-cols-3 mb-4">
+        <div class="stat-card"><div class="stat-value">2</div><div class="stat-label">Critical findings</div></div>
+        <div class="stat-card"><div class="stat-value text-danger">Yes</div><div class="stat-label">CERT reporting required</div></div>
+        <div class="stat-card"><div class="stat-value">72h</div><div class="stat-label">Notification window</div></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Law article</th><th>Obligation</th><th>Action required</th><th>Priority</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Art. 12</strong></td><td>Mandatory incident notification</td><td>Notify the National CERT within 72 hours.</td><td><span class="badge badge-critical">Immediate</span></td></tr>
+              <tr><td><strong>Art. 18</strong></td><td>Critical infrastructure protection</td><td>Apply mitigating controls and document them.</td><td><span class="badge badge-high">Urgent</span></td></tr>
+              <tr><td><strong>Art. 24</strong></td><td>Local data hosting</td><td>Confirm processing stays within national borders.</td><td><span class="badge badge-medium">Planned</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ AUDIT ============ -->
+    <div class="view" id="view-audit">
+      <h1 class="page-title">Immutable Audit Log</h1>
+      <p class="page-sub">Every action, scan, AI query, and review is recorded for accountability.</p>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Actor</th></tr></thead>
+            <tbody>
+              <tr><td class="text-muted">10:59</td><td>run_monitor_check</td><td>monitor #2</td><td>admin@ultorn.local</td></tr>
+              <tr><td class="text-muted">10:42</td><td>complete_scan</td><td>scan #4</td><td>system (scheduled)</td></tr>
+              <tr><td class="text-muted">10:31</td><td>review_finding</td><td>finding #9</td><td>analyst@utachi.sn</td></tr>
+              <tr><td class="text-muted">09:58</td><td>update_alert</td><td>alert #3 → resolved</td><td>analyst@utachi.sn</td></tr>
+              <tr><td class="text-muted">09:12</td><td>create_scan_schedule</td><td>schedule #1</td><td>admin@ultorn.local</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -649,9 +906,26 @@
 
 <script>
   // =========================================
-  // INTERACTIONS
+  // CONSOLE VIEW SWITCHING
   // =========================================
-  // Mobile nav toggle would go here
+  const navItems = document.querySelectorAll('.sidebar-item[data-view]');
+  const views = document.querySelectorAll('.view');
+
+  function showView(name) {
+    views.forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
+    navItems.forEach((n) => n.classList.toggle('active', n.dataset.view === name));
+    document.querySelector('.main-content').scrollTop = 0;
+    if (history.replaceState) history.replaceState(null, '', '#' + name);
+  }
+
+  navItems.forEach((item) => {
+    item.addEventListener('click', () => showView(item.dataset.view));
+  });
+
+  // Deep-link support: /design.html#alerts
+  const initial = (location.hash || '').replace('#', '');
+  if (initial && document.getElementById('view-' + initial)) showView(initial);
+
   console.log('Ultorn design loaded — ready for customization');
 </script>
 </body>
