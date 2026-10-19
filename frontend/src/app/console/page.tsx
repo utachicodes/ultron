@@ -60,6 +60,32 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M3 6h18M3 12h18M3 18h18" />
     </svg>
   ),
+  monitors: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
+  alerts: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M10 20v4M14 20v4M12 13V8M12 8l-1-1M12 8l1-1" />
+      <circle cx="12" cy="17" r="1" />
+    </svg>
+  ),
+  code: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+    </svg>
+  ),
+  compliance: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  reports: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M16 13h-4M16 17h-4" />
+    </svg>
+  ),
 }
 
 function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
@@ -235,6 +261,9 @@ function Page() {
   const [scans, setScans] = useState<any[]>([])
   const [findings, setFindings] = useState<any[]>([])
   const [audit, setAudit] = useState<any[]>([])
+  const [monitors, setMonitors] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [codeScans, setCodeScans] = useState<any[]>([])
   const [message, setMessage] = useState({ text: '', type: 'info' })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -305,6 +334,16 @@ function Page() {
         ...(user?.role === 'admin' ? [{ key: 'admin', label: 'Admin', icon: 'admin' }] : []),
       ],
     },
+    {
+      label: 'Operations',
+      items: [
+        { key: 'monitors', label: 'Monitors', icon: 'monitors' },
+        { key: 'alerts', label: 'Alerts', icon: 'alerts' },
+        { key: 'code-scans', label: 'Code Scans', icon: 'code' },
+        { key: 'compliance', label: 'Compliance', icon: 'compliance' },
+        { key: 'reports', label: 'Reports', icon: 'reports' },
+      ],
+    },
   ]
 
   const currentLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === view)?.label || 'Ultorn'
@@ -315,6 +354,9 @@ function Page() {
     scans, setScans,
     findings, setFindings,
     audit, setAudit,
+    monitors, setMonitors,
+    alerts, setAlerts,
+    codeScans, setCodeScans,
     setView,
   }
 
@@ -405,6 +447,11 @@ function Page() {
           {view === 'ai' && <AISection ctx={ctx} />}
           {view === 'audit' && <AuditSection ctx={ctx} />}
           {view === 'admin' && user?.role === 'admin' && <AdminSection ctx={ctx} />}
+          {view === 'monitors' && <MonitorsSection ctx={ctx} />}
+          {view === 'alerts' && <AlertsSection ctx={ctx} />}
+          {view === 'code-scans' && <CodeScansSection ctx={ctx} />}
+          {view === 'compliance' && <ComplianceSection ctx={ctx} />}
+          {view === 'reports' && <ReportsSection ctx={ctx} />}
         </main>
       </div>
     </div>
@@ -1031,6 +1078,468 @@ function AdminSection({ ctx }: { ctx: any }) {
       </div>
     )
   }
+// ============================================================
+// MONITORS (Continuous Monitoring)
+// ============================================================
+function MonitorsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, monitors, setMonitors } = ctx
+    const [newMonitor, setNewMonitor] = useState({ target: '', monitor_type: 'access_anomaly', client_id: '' })
+    const [clientsForMonitor, setClientsForMonitor] = useState<any[]>([])
+    const [selectedId, setSelectedId] = useState<any>(null)
+    const [monitorAlerts, setMonitorAlerts] = useState<any[]>([])
+
+    useEffect(() => {
+      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+      api('/clients').then((data: any) => setClientsForMonitor(Array.isArray(data) ? data : []))
+    }, [token])
+
+    const createMonitor = async (e: any) => {
+      e.preventDefault()
+      await api('/monitors', {
+        method: 'POST',
+        body: JSON.stringify({ ...newMonitor, client_id: parseInt(newMonitor.client_id) }),
+      })
+      setNewMonitor({ target: '', monitor_type: 'access_anomaly', client_id: '' })
+      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+      notify('Monitor created')
+    }
+
+    const runCheck = async (id: number) => {
+      const res = await api(`/monitors/${id}/check`, { method: 'POST' })
+      notify(`Monitor check: ${res.alerts_created || 0} alert(s) created`)
+      api(`/monitors/${id}/alerts`).then((data: any) => setMonitorAlerts(Array.isArray(data) ? data : []))
+    }
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>Continuous Monitoring</h1>
+        <p style={styles.hint}>
+          AI agents continuously watch for anomalous access, config drift, leaked credentials,
+          and policy violations before they go live.
+        </p>
+
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Create Monitor</h3>
+          <form onSubmit={createMonitor} style={styles.form}>
+            <select
+              value={newMonitor.client_id}
+              onChange={(e) => setNewMonitor({ ...newMonitor, client_id: e.target.value })}
+              style={styles.input}
+            >
+              <option value="">Select client</option>
+              {clientsForMonitor.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select
+              value={newMonitor.monitor_type}
+              onChange={(e) => setNewMonitor({ ...newMonitor, monitor_type: e.target.value })}
+              style={styles.input}
+            >
+              <option value="access_anomaly">Access Anomaly Detection</option>
+              <option value="config_drift">Configuration Drift</option>
+              <option value="leaked_cred">Leaked Credentials</option>
+              <option value="policy_violation">Policy Violation</option>
+            </select>
+            <input
+              placeholder="Target domain or URL"
+              value={newMonitor.target}
+              onChange={(e) => setNewMonitor({ ...newMonitor, target: e.target.value })}
+              style={styles.input}
+            />
+            <button type="submit" style={styles.button}>Create Monitor</button>
+          </form>
+        </div>
+
+        <SplitPanel
+          title="Monitors"
+          items={monitors}
+          selectedId={selectedId}
+          onSelect={(m) => { setSelectedId(m.id); api(`/monitors/${m.id}/alerts`).then((d: any) => setMonitorAlerts(Array.isArray(d) ? d : [])) }}
+          emptyLabel="No monitors yet."
+          renderRow={(m) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{m.target}</div>
+                <div style={styles.listRowSub}>{m.monitor_type}</div>
+              </div>
+              <Badge tone={m.is_active ? 'success' : 'neutral'}>{m.is_active ? 'Active' : 'Inactive'}</Badge>
+            </>
+          )}
+          renderDetail={(m) => (
+            <>
+              <div style={styles.detailHeading}>{m.target}</div>
+              <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
+              <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run Check Now</button>
+              </div>
+              {monitorAlerts.length > 0 && (
+                <>
+                  <div style={styles.detailLabel}>Alerts</div>
+                  {monitorAlerts.map((a: any) => (
+                    <div key={a.id} style={styles.auditRow}>
+                      <div>{a.title}</div>
+                      <Badge tone={severityTone(a.severity)}>{a.severity}</Badge>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        />
+      </div>
+    )
+}
+
+// ============================================================
+// ALERTS
+// ============================================================
+function AlertsSection({ ctx }: { ctx: any }) {
+  const { api, token, monitors, setMonitors } = ctx
+    const [alerts, setAlerts] = useState<any[]>([])
+
+    useEffect(() => {
+      api('/monitors').then((data: any) => {
+        const allMonitors = Array.isArray(data) ? data : []
+        setMonitors(allMonitors)
+        const allAlerts = allMonitors.flatMap((m: any) => m.alerts || [])
+        setAlerts(allAlerts)
+      })
+    }, [token])
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>Monitoring Alerts</h1>
+        <p style={styles.hint}>
+          Alerts generated by continuous monitoring agents. Review and acknowledge each one.
+        </p>
+
+        <div style={styles.lightCard}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alerts.length === 0 && (
+                <tr>
+                  <td style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No alerts yet.</td>
+                </tr>
+              )}
+              {alerts.map((a: any) => (
+                <tr key={a.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                  <td style={{ padding: '0.75rem 0' }}>{a.title}</td>
+                  <td style={{ padding: '0.75rem 0' }}><Badge tone={severityTone(a.severity)}>{a.severity}</Badge></td>
+                  <td style={{ padding: '0.75rem 0' }}>{a.status}</td>
+                  <td style={{ padding: '0.75rem 0', fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+}
+
+// ============================================================
+// CODE SCANS
+// ============================================================
+function CodeScansSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, codeScans, setCodeScans } = ctx
+    const [newCodeScan, setNewCodeScan] = useState({ client_id: '', repository_url: '', branch: 'main' })
+    const [clientsForCode, setClientsForCode] = useState<any[]>([])
+    const [selectedId, setSelectedId] = useState<any>(null)
+    const [issues, setIssues] = useState<any[]>([])
+
+    useEffect(() => {
+      api('/code-scans').then((data: any) => setCodeScans(Array.isArray(data) ? data : []))
+      api('/clients').then((data: any) => setClientsForCode(Array.isArray(data) ? data : []))
+    }, [token])
+
+    useEffect(() => {
+      if (selectedId) {
+        api(`/code-scans/${selectedId}/issues`).then((data: any) => setIssues(Array.isArray(data) ? data : []))
+      }
+    }, [selectedId])
+
+    const createCodeScan = async (e: any) => {
+      e.preventDefault()
+      await api('/code-scans', {
+        method: 'POST',
+        body: JSON.stringify({ ...newCodeScan, client_id: parseInt(newCodeScan.client_id) }),
+      })
+      setNewCodeScan({ client_id: '', repository_url: '', branch: 'main' })
+      api('/code-scans').then((data: any) => setCodeScans(Array.isArray(data) ? data : []))
+      notify('Code scan started')
+    }
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>AI Code Scanning</h1>
+        <p style={styles.hint}>
+          Detect hardcoded secrets, insecure defaults, vulnerable dependencies,
+          and logic flaws in AI-generated code before it ships.
+        </p>
+
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Scan Code</h3>
+          <form onSubmit={createCodeScan} style={styles.form}>
+            <select
+              value={newCodeScan.client_id}
+              onChange={(e) => setNewCodeScan({ ...newCodeScan, client_id: e.target.value })}
+              style={styles.input}
+            >
+              <option value="">Select client</option>
+              {clientsForCode.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input
+              placeholder="Repository URL or directory path"
+              value={newCodeScan.repository_url}
+              onChange={(e) => setNewCodeScan({ ...newCodeScan, repository_url: e.target.value })}
+              style={styles.input}
+            />
+            <input
+              placeholder="Branch"
+              value={newCodeScan.branch}
+              onChange={(e) => setNewCodeScan({ ...newCodeScan, branch: e.target.value })}
+              style={styles.input}
+            />
+            <button type="submit" style={styles.button}>Scan Code</button>
+          </form>
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Code Scans</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Repository</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issues</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codeScans.map((s: any) => (
+                <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                  <td style={{ padding: '0.75rem 0' }}>{s.repository_url || '-'}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{s.branch}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{s.status}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{s.issues_found}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {selectedId && (
+          <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+            <h3 style={styles.h3}>Issues</h3>
+            {issues.length === 0 && <p style={styles.hint}>No issues found.</p>}
+            {issues.map((i: any) => (
+              <div key={i.id} style={styles.auditRow}>
+                <div style={{ flex: 1 }}>
+                  <strong>{i.file_path}</strong>:{i.line_number}
+                  <br />
+                  <span style={styles.listRowSub}>{i.issue_type}</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <Badge tone={severityTone(i.severity || 'medium')}>{i.severity}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+}
+
+// ============================================================
+// COMPLIANCE
+// ============================================================
+function ComplianceSection({ ctx }: { ctx: any }) {
+  const { api, notify } = ctx
+    const [summary, setSummary] = useState<any>(null)
+    const [mappings, setMappings] = useState<any[]>([])
+    const [clientSector, setClientSector] = useState('banking')
+
+    const runSummary = async () => {
+      const res = await api(`/compliance/summary?total_findings=10&critical=2&high=3&medium=4&client_sector=${clientSector}`)
+      setSummary(res)
+    }
+
+    const runMap = async () => {
+      const findings = [
+        { title: 'Open SSH port on public IP', severity: 'high', id: 1 },
+        { title: 'Hardcoded API key in source', severity: 'critical', id: 2 },
+        { title: 'SSL verification disabled', severity: 'medium', id: 3 },
+      ]
+      const res = await api('/compliance/map', {
+        method: 'POST',
+        body: JSON.stringify({ findings, client_sector: clientSector }),
+      })
+      setMappings(res.mappings || [])
+      notify('Compliance mapping generated')
+    }
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>Compliance — Senegal Cyber Law 2026</h1>
+        <p style={styles.hint}>
+          Map findings to regulatory obligations under Senegal's new cybersecurity law:
+          National CERT, mandatory incident reporting, vulnerability disclosure,
+          local hosting, and AI governance.
+        </p>
+
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Compliance Summary</h3>
+          <div style={styles.formRow}>
+            <select
+              value={clientSector}
+              onChange={(e) => setClientSector(e.target.value)}
+              style={styles.input}
+            >
+              <option value="banking">Banking / Mobile Money</option>
+              <option value="telecom">Telecom</option>
+              <option value="government">Government</option>
+              <option value="other">Other</option>
+            </select>
+            <button onClick={runSummary} style={styles.button}>Run Summary</button>
+          </div>
+          {summary && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.04)', borderRadius: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                <div><div style={styles.statLabel}>Critical Findings</div><div style={styles.statValue}>{summary.critical}</div></div>
+                <div><div style={styles.statLabel}>Reporting Required</div><div style={styles.statValue}>{summary.reporting_required ? 'Yes' : 'No'}</div></div>
+                <div><div style={styles.statLabel}>CERT Window</div><div style={styles.statValue}>{summary.cert_notification_window_hours}h</div></div>
+              </div>
+              <p style={styles.listRowSub}>{summary.framework}</p>
+              <p style={styles.listRowSub}>Sector: {summary.client_sector}</p>
+              <div style={styles.detailLabel}>Next Steps</div>
+              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+                {summary.next_steps.map((s: string) => <li key={s}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Findings → Law Mapping</h3>
+          <button onClick={runMap} style={styles.button}>Generate Mappings</button>
+          {mappings.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              {mappings.map((m: any) => (
+                <div key={m.law_article} style={styles.auditRow}>
+                  <div style={{ flex: 1 }}>
+                    <strong>{m.law_article}</strong>
+                    <br />
+                    <span style={styles.listRowSub}>{m.obligation}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <Badge tone={m.priority === 'immediate' ? 'danger' : m.priority === 'urgent' ? 'warning' : 'neutral'}>{m.priority}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+}
+
+// ============================================================
+// REPORTS
+// ============================================================
+function ReportsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, scans, setScans } = ctx
+    const [report, setReport] = useState<any>(null)
+    const [markdown, setMarkdown] = useState<string>('')
+    const [selectedScan, setSelectedScan] = useState('')
+
+    useEffect(() => {
+      api('/scans').then((data: any) => setScans(Array.isArray(data) ? data : []))
+    }, [token])
+
+    const generateReport = async (scanId: number) => {
+      const res = await api(`/scans/${scanId}/report`)
+      setReport(res)
+      const mdRes = await api(`/scans/${scanId}/report/markdown`)
+      setMarkdown(mdRes.markdown || '')
+      notify('Report generated')
+    }
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>Reports</h1>
+        <p style={styles.hint}>
+          Plain-language reports mapped to business impact and Senegal Cyber Law 2026 obligations.
+        </p>
+
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Generate Report</h3>
+          <div style={styles.formRow}>
+            <select
+              style={styles.input}
+              value={selectedScan}
+              onChange={(e: any) => setSelectedScan(e.target.value)}
+            >
+              <option value="">Select scan</option>
+              {scans.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.client?.name} — {s.scan_type} ({s.status})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => { if (selectedScan) generateReport(parseInt(selectedScan)) }}
+              style={styles.button}
+            >
+              Generate
+            </button>
+          </div>
+        </div>
+
+        {report && (
+          <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+            <h3 style={styles.h3}>Report: Scan #{report.scan_id}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+              <div><div style={styles.statLabel}>Client</div><div style={styles.statValue}>{report.client_name}</div></div>
+              <div><div style={styles.statLabel}>Rating</div><div style={styles.statValue}>{report.overall_rating}</div></div>
+              <div><div style={styles.statLabel}>Total Findings</div><div style={styles.statValue}>{report.findings_count.total}</div></div>
+            </div>
+            <div style={styles.detailLabel}>Executive Summary</div>
+            <p style={styles.listRowSub}>{report.executive_summary}</p>
+            <div style={styles.detailLabel}>Plain Language</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+              {report.plain_language.map((p: string) => <li key={p}>{p}</li>)}
+            </ul>
+            <div style={styles.detailLabel}>Recommendations</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+              {report.recommendations.map((r: string) => <li key={r}>{r}</li>)}
+            </ul>
+            <div style={styles.detailLabel}>Compliance Mappings</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+              {report.compliance_mappings.map((m: any) => (
+                <li key={m.law_article}>
+                  <strong>{m.law_article}:</strong> {m.action_required}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {markdown && (
+          <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+            <h3 style={styles.h3}>Markdown Export</h3>
+            <div style={styles.codeBlock}>{markdown}</div>
+          </div>
+        )}
+      </div>
+    )
+}
+
 export default Page
 
 // ============================================================

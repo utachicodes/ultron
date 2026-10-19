@@ -23,6 +23,19 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Redesigned the console (`/console`): dark sidebar nav, light content chrome, glass stat
       tiles, dark split list/detail panels for clients/scans/findings/audit/admin, popups for
       quick actions (add client, start scan, create API key)
+- [x] Continuous monitoring engine (`monitor.py`): access anomaly, config drift, leaked
+      credentials, policy violations; `Monitor` + `Alert` models, CRUD/check/alerts routes
+- [x] AI code scanning (`code_scanner.py`): hardcoded secrets, dangerous eval/exec,
+      disabled SSL verification, insecure defaults; `CodeScan` + `CodeScanIssue` models
+- [x] Senegal Cyber Law 2026 compliance mapping (`compliance.py`): findings → law articles,
+      CERT notification windows, sector-specific obligations
+- [x] Report generation (`reports.py`): plain-language executive reports, recommendations,
+      compliance mappings, Markdown export
+- [x] Recurring monitor scheduler (`scheduler.py`) wired to `worker.process_monitor_check`
+- [x] Console sections for Monitors, Alerts, Code Scans, Compliance, and Reports
+- [x] Fixed monitor-check 500 (`monitor.id` → `monitor_obj.id`) and populated
+      `body_preview` so leaked-credential detection actually runs
+- [x] `design.html`: static design reference for the console rework
 
 ## In progress / needs a pass
 

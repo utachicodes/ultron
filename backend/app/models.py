@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Enum, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -151,3 +151,67 @@ class AIQueryLog(Base):
     tokens_in = Column(Integer)
     tokens_out = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Monitor(Base):
+    __tablename__ = "monitors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    target = Column(String(500), nullable=False)
+    monitor_type = Column(String(50), nullable=False)
+    is_active = Column(Boolean, default=True)
+    baseline_config = Column(Text)  # JSON
+    last_check = Column(DateTime(timezone=True))
+    next_check = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    client = relationship("Client", back_populates="monitors")
+    alerts = relationship("Alert", back_populates="monitor")
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    monitor_id = Column(Integer, ForeignKey("monitors.id"), nullable=False)
+    title = Column(String(500), nullable=False)
+    description = Column(Text)
+    severity = Column(String(20), nullable=False)
+    evidence = Column(Text)  # JSON
+    status = Column(String(50), default="open")  # open, acknowledged, resolved, false_positive
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True))
+
+    monitor = relationship("Monitor", back_populates="alerts")
+
+
+class CodeScan(Base):
+    __tablename__ = "code_scans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    repository_url = Column(String(500))
+    branch = Column(String(100))
+    status = Column(String(50), default="pending")
+    total_files = Column(Integer, default=0)
+    issues_found = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CodeScanIssue(Base):
+    __tablename__ = "code_scan_issues"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code_scan_id = Column(Integer, ForeignKey("code_scans.id"), nullable=False)
+    file_path = Column(String(500))
+    line_number = Column(Integer)
+    issue_type = Column(String(100))  # hardcoded_secret, insecure_default, vulnerable_dep, logic_flaw
+    severity = Column(String(20))
+    description = Column(Text)
+    remediation = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# Add relationships to Client
+Client.monitors = relationship("Monitor", back_populates="client")

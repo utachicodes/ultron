@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 import uuid
 import json
+from datetime import datetime
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal, get_db
-from app import models, schemas, auth, scanner, ai_router, audit
+from app import models, schemas, auth, scanner, ai_router, audit, code_scanner, monitor, compliance, reports
 from app.sanitizer import sanitize_text
 
 # Create tables
@@ -511,6 +512,284 @@ def admin_revoke_api_key(
         resource_type="api_key", resource_id=str(key_id),
     )
     return {"revoked": True}
+
+
+# ============================================================
+# Monitors (Continuous Monitoring)
+# ============================================================
+@app.post("/monitors", response_model=schemas.MonitorOut)
+def create_monitor(
+    monitor_in: schemas.MonitorCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    client = db.query(models.Client).filter(models.Client.id == monitor_in.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if current_user.role == models.UserRole.client and client.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    monitor = models.Monitor(
+        client_id=monitor_in.client_id,
+        target=monitor_in.target,
+        monitor_type=monitor_in.monitor_type,
+    )
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+    audit.log_action(db, "create_monitor", user_id=current_user.id, client_id=client.id,
+                     resource_type="monitor", resource_id=str(monitor.id),
+                     details={"target": monitor_in.target, "monitor_type": monitor_in.monitor_type})
+    return monitor
+
+
+@app.get("/monitors", response_model=List[schemas.MonitorOut])
+def list_monitors(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    query = db.query(models.Monitor)
+    if current_user.role == models.UserRole.client:
+        query = query.join(models.Client).filter(models.Client.owner_id == current_user.id)
+    return query.all()
+
+
+@app.get("/monitors/{monitor_id}/alerts", response_model=List[schemas.AlertOut])
+def get_monitor_alerts(
+    monitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    monitor = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    if current_user.role == models.UserRole.client and monitor.client.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return db.query(models.Alert).filter(models.Alert.monitor_id == monitor_id).all()
+
+
+@app.post("/monitors/{monitor_id}/check")
+def run_monitor_check(
+    monitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    monitor_obj = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+    if not monitor_obj:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+
+    baseline = json.loads(monitor_obj.baseline_config) if monitor_obj.baseline_config else None
+    alerts = monitor.run_monitoring_check(monitor_obj.monitor_type, monitor_obj.target, baseline)
+
+    monitor_obj.last_check = datetime.utcnow()
+
+    for alert_data in alerts:
+        alert = models.Alert(
+            monitor_id=monitor_obj.id,
+            title=alert_data.get("title", "Alert"),
+            description=alert_data.get("description"),
+            severity=alert_data.get("severity", "medium"),
+            evidence=json.dumps(alert_data.get("evidence")) if alert_data.get("evidence") else None,
+            status="open",
+        )
+        db.add(alert)
+
+    db.commit()
+    return {"alerts_created": len(alerts)}
+
+
+# ============================================================
+# Code Scans
+# ============================================================
+@app.post("/code-scans", response_model=schemas.CodeScanOut)
+def create_code_scan(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    client_id = request.get("client_id")
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    code_scan = models.CodeScan(
+        client_id=client_id,
+        repository_url=request.get("repository_url"),
+        branch=request.get("branch", "main"),
+        status="pending",
+    )
+    db.add(code_scan)
+    db.commit()
+    db.refresh(code_scan)
+
+    # Run synchronously for MVP
+    results = code_scanner.run_code_scan(request.get("repository_url", ""), "code")
+
+    issues_found = 0
+    for r in results:
+        if "error" in r:
+            continue
+        issue = models.CodeScanIssue(
+            code_scan_id=code_scan.id,
+            file_path=r.get("file_path"),
+            line_number=r.get("line_number"),
+            issue_type=r.get("issue_type"),
+            severity=r.get("severity"),
+            description=r.get("description"),
+            remediation=r.get("remediation"),
+        )
+        db.add(issue)
+        issues_found += 1
+
+    code_scan.status = "completed"
+    code_scan.total_files = len(set(r.get("file_path", "") for r in results if "error" not in r))
+    code_scan.issues_found = issues_found
+    db.commit()
+    db.refresh(code_scan)
+
+    return code_scan
+
+
+@app.get("/code-scans", response_model=List[schemas.CodeScanOut])
+def list_code_scans(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    query = db.query(models.CodeScan)
+    if current_user.role == models.UserRole.client:
+        query = query.join(models.Client).filter(models.Client.owner_id == current_user.id)
+    return query.all()
+
+
+@app.get("/code-scans/{code_scan_id}/issues", response_model=List[schemas.CodeScanIssueOut])
+def get_code_scan_issues(
+    code_scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    code_scan = db.query(models.CodeScan).filter(models.CodeScan.id == code_scan_id).first()
+    if not code_scan:
+        raise HTTPException(status_code=404, detail="Code scan not found")
+    if current_user.role == models.UserRole.client and code_scan.client.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return db.query(models.CodeScanIssue).filter(models.CodeScanIssue.code_scan_id == code_scan_id).all()
+
+
+# ============================================================
+# Reports
+# ============================================================
+@app.get("/scans/{scan_id}/report")
+def get_scan_report(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if current_user.role == models.UserRole.client and scan.client.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    findings = db.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+    findings_list = [
+        {
+            "id": f.id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "target": f.target,
+            "evidence": f.evidence,
+            "remediation": f.remediation,
+            "status": f.status,
+        }
+        for f in findings
+    ]
+
+    summary = json.loads(scan.summary) if scan.summary else {}
+    client = scan.client
+
+    report = reports.generate_report(
+        scan_id=scan.id,
+        scan_type=scan.scan_type,
+        findings=findings_list,
+        summary=summary,
+        client_name=client.name,
+        client_sector=getattr(client, 'sector', None),
+    )
+
+    return report
+
+
+@app.get("/scans/{scan_id}/report/markdown")
+def get_scan_report_markdown(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if current_user.role == models.UserRole.client and scan.client.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    findings = db.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+    findings_list = [
+        {
+            "id": f.id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "target": f.target,
+            "evidence": f.evidence,
+            "remediation": f.remediation,
+            "status": f.status,
+        }
+        for f in findings
+    ]
+
+    summary = json.loads(scan.summary) if scan.summary else {}
+    client = scan.client
+
+    report = reports.generate_report(
+        scan_id=scan.id,
+        scan_type=scan.scan_type,
+        findings=findings_list,
+        summary=summary,
+        client_name=client.name,
+        client_sector=getattr(client, 'sector', None),
+    )
+
+    md = reports.report_to_markdown(report)
+    return {"markdown": md}
+
+
+# ============================================================
+# Compliance
+# ============================================================
+@app.post("/compliance/map")
+def map_compliance(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    findings = request.get("findings", [])
+    client_sector = request.get("client_sector")
+    mappings = compliance.map_findings_to_compliance(findings, client_sector)
+    return {"mappings": mappings}
+
+
+@app.get("/compliance/summary")
+def compliance_summary(
+    total_findings: int = 0,
+    critical: int = 0,
+    high: int = 0,
+    medium: int = 0,
+    client_sector: Optional[str] = None,
+):
+    return compliance.get_compliance_summary(total_findings, critical, high, medium, client_sector)
 
 
 # ============================================================

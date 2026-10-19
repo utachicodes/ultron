@@ -214,3 +214,74 @@ class AIQueryOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Monitors (Continuous Monitoring) ---
+class MonitorBase(BaseModel):
+    target: str
+    monitor_type: str
+    client_id: int
+
+
+class MonitorCreate(MonitorBase):
+    pass
+
+
+class MonitorOut(MonitorBase):
+    id: int
+    is_active: bool
+    last_check: Optional[datetime] = None
+    next_check: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Alerts ---
+class AlertBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    severity: str
+    evidence: Optional[str] = None
+    status: str = "open"
+
+
+class AlertOut(AlertBase):
+    id: int
+    monitor_id: int
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Code Scans ---
+class CodeScanOut(BaseModel):
+    id: int
+    client_id: int
+    repository_url: Optional[str]
+    branch: Optional[str]
+    status: str
+    total_files: int
+    issues_found: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CodeScanIssueOut(BaseModel):
+    id: int
+    code_scan_id: int
+    file_path: Optional[str]
+    line_number: Optional[int]
+    issue_type: Optional[str]
+    severity: Optional[str]
+    description: Optional[str]
+    remediation: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
