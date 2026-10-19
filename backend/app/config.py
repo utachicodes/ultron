@@ -1,11 +1,51 @@
+from __future__ import annotations
+
+"""Application configuration.
+
+Security note: if `SECRET_KEY` is left at its development default, a random
+key is generated on first boot and persisted next to the database. Tokens then
+survive restarts without ever shipping a known key.
+"""
+
+import secrets
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+DEV_SECRET = "dev-secret-change-me"
+_BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _resolve_secret() -> str:
+    """Load SECRET_KEY from env if set, else a generated key stored in .secret_key."""
+    import os
+
+    env_secret = os.getenv("SECRET_KEY")
+    if env_secret and env_secret != DEV_SECRET:
+        return env_secret
+
+    key_file = _BASE_DIR / ".secret_key"
+    if key_file.exists():
+        existing = key_file.read_text().strip()
+        if existing:
+            return existing
+
+    generated = secrets.token_urlsafe(48)
+    try:
+        key_file.write_text(generated)
+        key_file.chmod(0o600)
+    except OSError:
+        # Read-only filesystem: fall back to an ephemeral key. Tokens will
+        # not survive a restart, which is safer than a known default.
+        pass
+    return generated
 
 
 class Settings(BaseSettings):
     app_name: str = "Ultorn"
     debug: bool = True
     database_url: str = "sqlite:///./ultorn.db"
-    secret_key: str = "dev-secret-change-me"
+    secret_key: str = _resolve_secret()
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 

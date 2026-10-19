@@ -829,6 +829,7 @@ function AISection({ ctx }: { ctx: any }) {
     const [prompt, setPrompt] = useState('')
     const [clientName, setClientName] = useState('')
     const [response, setResponse] = useState('')
+    const [aiMeta, setAiMeta] = useState<any>(null)
     const [sanitized, setSanitized] = useState('')
     const [forceLocal, setForceLocal] = useState(false)
 
@@ -838,6 +839,7 @@ function AISection({ ctx }: { ctx: any }) {
         body: JSON.stringify({ prompt, client_name: clientName || undefined, force_local: forceLocal }),
       })
       setResponse(res.response || 'No response')
+      setAiMeta({ provider: res.provider, model: res.model, sanitized: res.prompt_sanitized, id: res.query_id })
     }
 
     const doSanitize = () => {
@@ -881,6 +883,18 @@ function AISection({ ctx }: { ctx: any }) {
         {response && (
           <div style={styles.lightCard}>
             <h3 style={styles.h3}>AI Response</h3>
+            {aiMeta && (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                <Badge tone={aiMeta.provider === 'local' ? 'success' : 'warning'}>
+                  {aiMeta.provider === 'local' ? 'Stayed on-premises' : `Sent to ${aiMeta.provider}`}
+                </Badge>
+                <Badge tone="neutral">{aiMeta.model}</Badge>
+                <Badge tone={aiMeta.sanitized ? 'success' : 'neutral'}>
+                  {aiMeta.sanitized ? 'Prompt sanitized' : 'No sensitive data'}
+                </Badge>
+                <Badge tone="neutral">Query #{aiMeta.id}</Badge>
+              </div>
+            )}
             <div style={styles.codeBlock}>{response}</div>
           </div>
         )}
@@ -1108,6 +1122,28 @@ function MonitorsSection({ ctx }: { ctx: any }) {
       const res = await api(`/monitors/${id}/check`, { method: 'POST' })
       notify(`Monitor check: ${res.alerts_created || 0} alert(s) created`)
       api(`/monitors/${id}/alerts`).then((data: any) => setMonitorAlerts(Array.isArray(data) ? data : []))
+      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+    }
+
+    const refreshMonitors = () =>
+      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+
+    const toggleActive = async (m: any) => {
+      await api(`/monitors/${m.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !m.is_active }),
+      })
+      notify(m.is_active ? 'Monitor paused' : 'Monitor resumed')
+      refreshMonitors()
+    }
+
+    const removeMonitor = async (m: any) => {
+      if (!window.confirm(`Delete monitor for ${m.target}? Its alerts will also be removed.`)) return
+      await api(`/monitors/${m.id}`, { method: 'DELETE' })
+      setSelectedId(null)
+      setMonitorAlerts([])
+      notify('Monitor deleted')
+      refreshMonitors()
     }
 
     return (
@@ -1168,8 +1204,12 @@ function MonitorsSection({ ctx }: { ctx: any }) {
             <>
               <div style={styles.detailHeading}>{m.target}</div>
               <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
-              <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
+              <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run Check Now</button>
+                <button onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
+                  {m.is_active ? 'Pause' : 'Resume'}
+                </button>
+                <button onClick={() => removeMonitor(m)} style={styles.darkActionBtn}>Delete</button>
               </div>
               {monitorAlerts.length > 0 && (
                 <>
@@ -1193,24 +1233,55 @@ function MonitorsSection({ ctx }: { ctx: any }) {
 // ALERTS
 // ============================================================
 function AlertsSection({ ctx }: { ctx: any }) {
-  const { api, token, monitors, setMonitors } = ctx
+  const { api, token, notify } = ctx
     const [alerts, setAlerts] = useState<any[]>([])
+    const [statusFilter, setStatusFilter] = useState('')
+    const [severityFilter, setSeverityFilter] = useState('')
 
-    useEffect(() => {
-      api('/monitors').then((data: any) => {
-        const allMonitors = Array.isArray(data) ? data : []
-        setMonitors(allMonitors)
-        const allAlerts = allMonitors.flatMap((m: any) => m.alerts || [])
-        setAlerts(allAlerts)
+    const load = () => {
+      const params = new URLSearchParams()
+      if (statusFilter) params.set('status', statusFilter)
+      if (severityFilter) params.set('severity', severityFilter)
+      const qs = params.toString()
+      api(`/alerts${qs ? `?${qs}` : ''}`).then((data: any) => setAlerts(Array.isArray(data) ? data : []))
+    }
+
+    useEffect(load, [token, statusFilter, severityFilter])
+
+    const setStatus = async (alert: any, status: string) => {
+      await api(`/alerts/${alert.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
       })
-    }, [token])
+      notify(`Alert marked ${status.replace('_', ' ')}`)
+      load()
+    }
+
+    const openCount = alerts.filter((a: any) => a.status === 'open').length
 
     return (
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Monitoring Alerts</h1>
         <p style={styles.hint}>
-          Alerts generated by continuous monitoring agents. Review and acknowledge each one.
+          Alerts generated by continuous monitoring agents. {openCount} open alert(s) need review.
         </p>
+
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...styles.input, maxWidth: 200 }}>
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="resolved">Resolved</option>
+            <option value="false_positive">False positive</option>
+          </select>
+          <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} style={{ ...styles.input, maxWidth: 200 }}>
+            <option value="">All severities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
 
         <div style={styles.lightCard}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1220,20 +1291,32 @@ function AlertsSection({ ctx }: { ctx: any }) {
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Time</th>
+                <th style={{ padding: '0.75rem 0' }}></th>
               </tr>
             </thead>
             <tbody>
               {alerts.length === 0 && (
                 <tr>
-                  <td style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No alerts yet.</td>
+                  <td colSpan={5} style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No alerts match these filters.</td>
                 </tr>
               )}
               {alerts.map((a: any) => (
                 <tr key={a.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                  <td style={{ padding: '0.75rem 0' }}>{a.title}</td>
+                  <td style={{ padding: '0.75rem 0' }}>
+                    <div>{a.title}</div>
+                    {a.description && <div style={{ fontSize: '0.78rem', color: 'rgba(17,17,19,0.5)' }}>{a.description}</div>}
+                  </td>
                   <td style={{ padding: '0.75rem 0' }}><Badge tone={severityTone(a.severity)}>{a.severity}</Badge></td>
-                  <td style={{ padding: '0.75rem 0' }}>{a.status}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{a.status.replace('_', ' ')}</td>
                   <td style={{ padding: '0.75rem 0', fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {a.status === 'open' && (
+                      <button onClick={() => setStatus(a, 'acknowledged')} style={styles.buttonGhostLight}>Acknowledge</button>
+                    )}
+                    {a.status !== 'resolved' && (
+                      <button onClick={() => setStatus(a, 'resolved')} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Resolve</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

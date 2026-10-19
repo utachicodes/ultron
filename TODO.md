@@ -39,20 +39,24 @@ as items are picked up or completed. It's the source of truth for "what's left."
 
 ## In progress / needs a pass
 
-- [ ] CI: expand the basic build workflow with backend tests once a test suite exists
+- [ ] CI: add frontend smoke tests once a browser-level test harness exists
 
 ## Backlog
 
 ### Correctness / hardening
-- [ ] Rate limiting on auth endpoints (`/auth/token`, `/auth/register`)
-- [ ] Pagination for `/scans`, `/scans/{id}/findings`, `/audit` (currently unbounded)
+- [x] Rate limiting on auth endpoints (`/auth/token`, `/auth/register`) — in-process
+      sliding window; swap for Redis when running multiple replicas
+- [x] Pagination for `/scans`, `/scans/{id}/findings`, `/audit`, `/alerts` (defaults + server caps)
+- [x] Prevent privilege escalation: `/auth/register` accepts no role and always creates `client`
+- [x] Secrets: random `SECRET_KEY` generated on first boot (`backend/.secret_key`, chmod 600)
+- [x] Scheduler wired into startup; idempotent per-monitor jobs; `ENABLE_SCHEDULER=false` opt-out
+- [x] Shared `worker.process_monitor_check` for scheduled and manual checks
+- [ ] Replace the in-process scheduler with a real queue (Celery/Redis) for multi-replica deploys
 - [ ] Postgres option for `DATABASE_URL` in production (SQLite is fine for MVP/single-node only)
-- [ ] Secrets: generate a random `SECRET_KEY` on first boot instead of the `.env.example` default
-- [ ] Replace the Celery/worker stub (`backend/app/worker.py`) with a real queue, or remove it.
-      Right now scans run synchronously in the request and the worker does nothing
 
 ### Tests
-- [ ] Backend: pytest suite for auth, scan scope CRUD, scan run, admin endpoints
+- [x] Backend: pytest suite for auth, clients/scopes, scans, findings, reports, monitors,
+      alerts, code scans, compliance, sanitization, and AI routing (28 tests)
 - [ ] Frontend: at least smoke tests for the console app's auth-gated views
 - [ ] Run the full test suite (backend + frontend) locally before every push, once it exists.
       CI currently only checks that each side imports/builds, not behavior

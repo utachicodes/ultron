@@ -28,10 +28,19 @@ MVP backend (FastAPI + SQLAlchemy + SQLite) + frontend (Next.js) implementing:
 - **Scan scopes**: add targets (domains, IPs, URLs) per client
 - **Vulnerability scanning** with full data extraction: HTTP headers, server banners,
   page titles, response bodies, Nmap service detection, Nuclei template matching
+- **Continuous monitoring**: access anomalies, configuration drift, leaked credentials, and
+  policy violations, with scheduled checks, alert triage, and acknowledgement/resolution
+- **AI code scanning**: detects hardcoded secrets, `eval`/`exec`, disabled TLS verification,
+  and insecure defaults in AI-generated or human-written code
+- **Senegal Cyber Law 2026 compliance**: maps findings to law articles, CERT notification
+  windows, and sector-specific obligations (banking, telecom, government)
+- **Reports**: plain-language executive reports with recommendations, compliance mappings,
+  and Markdown export
 - **No verification gate**: scans run on all non-excluded scopes immediately
 - **Findings + human review**: critical/high findings require named analyst attestation
 - **AI sovereignty layer**: prompt sanitization (client names, IPs, credentials, PII stripped),
-  model-abstraction (Anthropic/OpenAI swappable), local fallback, immutable AI query audit log
+  model-abstraction (Anthropic/OpenAI swappable), local fallback, immutable AI query audit log.
+  Responses report which provider handled the request
 - **Immutable audit log**: every action, scan, AI query, and review logged
 - **Admin panel**: manage user roles/access and issue/revoke API keys for programmatic access
 - **Marketing landing page**: dark full-viewport hero at `/`, with the operator console at `/console`
@@ -97,10 +106,22 @@ docker-compose up --build
 | POST | `/scans` | Create a scan |
 | POST | `/scans/{id}/run` | Run scan (no verification gate) |
 | GET | `/scans/{id}/findings` | Get findings with extracted evidence |
+| GET | `/scans/{id}/report` | Executive report (JSON) |
+| GET | `/scans/{id}/report/markdown` | Executive report (Markdown) |
 | POST | `/findings/{id}/review` | Human analyst review |
-| POST | `/ai/query` | Sanitized AI query (logged) |
+| GET/POST | `/monitors` | Continuous monitoring targets |
+| PATCH/DELETE | `/monitors/{id}` | Pause/resume or remove a monitor |
+| POST | `/monitors/{id}/check` | Run a monitor check now |
+| GET | `/monitors/{id}/alerts` | Alerts for one monitor |
+| GET | `/alerts` | All alerts (filter by `status`, `severity`) |
+| PATCH | `/alerts/{id}` | Acknowledge / resolve / mark false positive |
+| GET/POST | `/code-scans` | AI code scanning |
+| GET | `/code-scans/{id}/issues` | Issues found in a code scan |
+| POST | `/compliance/map` | Map findings to Senegal Cyber Law 2026 articles |
+| GET | `/compliance/summary` | Sector compliance summary and next steps |
+| POST | `/ai/query` | Sanitized AI query (logged, returns provider + model) |
 | GET | `/ai/audit` | AI query audit log |
-| GET | `/audit` | Full audit log |
+| GET | `/audit` | Full audit log (paginated, filter by `action`) |
 | POST | `/sanitize` | Preview sanitization |
 | GET | `/health` | Health check |
 | GET | `/admin/users` | List users (admin) |
@@ -111,6 +132,22 @@ docker-compose up --build
 
 API keys authenticate like a user session: send `X-API-Key: <key>` instead of a `Bearer` JWT
 on any endpoint, scoped to the admin account that minted the key.
+
+List endpoints accept `limit`/`offset` (defaults: scans 100, findings 200, audit 200) and cap
+page size server-side.
+
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest tests
+```
+
+The suite uses an isolated temporary SQLite database and runs with the scheduler disabled.
+It covers auth (including the no-self-admin-registration rule and login rate limiting),
+clients/scans/findings/reports, monitors and alerts, code scanning, compliance mapping,
+sanitization, and AI routing.
 
 ## File Layout
 

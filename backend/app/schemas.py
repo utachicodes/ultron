@@ -31,6 +31,15 @@ class UserCreate(UserBase):
     password: str
 
 
+class RegisterCreate(BaseModel):
+    """Public self-registration. Role is never accepted from the client —
+    new accounts are always created as `client`. Elevation happens only
+    through the admin panel."""
+    email: str
+    password: str
+    full_name: Optional[str] = None
+
+
 class UserOut(UserBase):
     id: int
     is_active: bool
@@ -227,6 +236,13 @@ class MonitorCreate(MonitorBase):
     pass
 
 
+class MonitorUpdate(BaseModel):
+    target: Optional[str] = None
+    monitor_type: Optional[str] = None
+    is_active: Optional[bool] = None
+    baseline_config: Optional[str] = None
+
+
 class MonitorOut(MonitorBase):
     id: int
     is_active: bool
@@ -255,6 +271,11 @@ class AlertOut(AlertBase):
 
     class Config:
         from_attributes = True
+
+
+class AlertUpdate(BaseModel):
+    status: str
+    note: Optional[str] = None
 
 
 # --- Code Scans ---

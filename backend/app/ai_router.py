@@ -71,7 +71,13 @@ def route_ai_query(
         db.add(log_entry)
         db.commit()
 
-        return response
+        return {
+            "response": response,
+            "provider": provider,
+            "model": model,
+            "prompt_sanitized": prompt_sanitized,
+            "query_id": log_entry.id,
+        }
     finally:
         if close_db:
             db.close()

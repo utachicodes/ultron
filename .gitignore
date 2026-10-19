@@ -23,3 +23,6 @@ frontend/tsconfig.tsbuildinfo
 # Env files
 .env
 .env.local
+
+# Generated secret key (never commit)
+backend/.secret_key

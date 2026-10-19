@@ -70,3 +70,50 @@ def process_scan(scan_id: int):
 
 if __name__ == "__main__":
     print("Ultorn worker ready. Run with: celery -A app.worker worker --loglevel=info")
+
+
+def process_monitor_check(monitor_id: int, force: bool = False):
+    """Run one monitoring check and persist any alerts it produces.
+
+    Shared by the scheduler and by ad-hoc calls so both paths behave
+    identically (same evidence, same alert rows). `force=True` lets an
+    operator run a check on a paused monitor.
+    """
+    from datetime import datetime, timedelta
+    from app.monitor import run_monitoring_check
+
+    db = SessionLocal()
+    try:
+        monitor = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+        if not monitor:
+            return 0
+        if not monitor.is_active and not force:
+            return 0
+
+        baseline = json.loads(monitor.baseline_config) if monitor.baseline_config else None
+        alerts = run_monitoring_check(monitor.monitor_type, monitor.target, baseline)
+
+        monitor.last_check = datetime.utcnow()
+        monitor.next_check = datetime.utcnow() + timedelta(minutes=60)
+
+        for alert_data in alerts:
+            db.add(
+                models.Alert(
+                    monitor_id=monitor.id,
+                    title=alert_data.get("title", "Alert"),
+                    description=alert_data.get("description"),
+                    severity=alert_data.get("severity", "medium"),
+                    evidence=json.dumps(alert_data.get("evidence"))
+                    if alert_data.get("evidence")
+                    else None,
+                    status="open",
+                )
+            )
+
+        db.commit()
+        return len(alerts)
+    except Exception:
+        db.rollback()
+        return 0
+    finally:
+        db.close()

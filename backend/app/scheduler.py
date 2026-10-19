@@ -1,37 +1,89 @@
 from __future__ import annotations
 
-"""Recurring scan scheduler for continuous monitoring."""
+"""Recurring scan scheduler for continuous monitoring.
+
+The `schedule` library keeps a process-global job registry, so every monitor
+is tagged with its own id. Re-scheduling a monitor replaces its previous job
+instead of stacking duplicates.
+"""
+
+import threading
+import time
 
 import schedule
-import time
-import threading
+
 from app.worker import process_monitor_check
-from app.database import SessionLocal
-from app import models
+
+_scheduler_thread: threading.Thread | None = None
+_started = False
 
 
-def run_scheduler():
-    """Run the background scheduler loop."""
-    def loop():
-        while True:
-            schedule.run_pending()
-            time.sleep(60)
-
-    thread = threading.Thread(target=loop, daemon=True)
-    thread.start()
-    return thread
+def _job_tag(monitor_id: int) -> str:
+    return f"monitor-{monitor_id}"
 
 
-def schedule_monitor(monitor_id: int, interval_minutes: int = 60):
-    """Schedule a recurring monitor check."""
-    def job():
-        db = SessionLocal()
+def schedule_monitor(monitor_id: int, interval_minutes: int = 60) -> None:
+    """Schedule (or re-schedule) a recurring monitor check."""
+    tag = _job_tag(monitor_id)
+
+    for existing in list(schedule.get_jobs(tag)):
+        schedule.cancel_job(existing)
+
+    schedule.every(interval_minutes).minutes.do(
+        process_monitor_check, monitor_id=monitor_id
+    ).tag(tag)
+
+
+def unschedule_monitor(monitor_id: int) -> None:
+    for existing in list(schedule.get_jobs(_job_tag(monitor_id))):
+        schedule.cancel_job(existing)
+
+
+def bootstrap() -> list[int]:
+    """Load every active monitor from the database into the scheduler.
+
+    Returns the monitor ids that were scheduled. Safe to call repeatedly.
+    """
+    from app.database import SessionLocal
+    from app import models
+
+    scheduled: list[int] = []
+    db = SessionLocal()
+    try:
+        monitors = db.query(models.Monitor).filter(models.Monitor.is_active == True).all()
+        for monitor in monitors:
+            schedule_monitor(monitor.id)
+            scheduled.append(monitor.id)
+    finally:
+        db.close()
+    return scheduled
+
+
+def _loop() -> None:
+    while True:
         try:
-            monitor = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
-            if monitor and monitor.is_active:
-                process_monitor_check(monitor_id)
-        finally:
-            db.close()
+            schedule.run_pending()
+        except Exception:
+            # A single failing job must never kill the scheduler thread.
+            pass
+        time.sleep(30)
 
-    schedule.every(interval_minutes).minutes.do(job)
-    print(f"Scheduled monitor {monitor_id} every {interval_minutes} minutes")
+
+def start() -> threading.Thread:
+    """Start the scheduler thread once. Returns the existing thread if running."""
+    global _scheduler_thread, _started
+
+    if _started and _scheduler_thread and _scheduler_thread.is_alive():
+        return _scheduler_thread
+
+    bootstrap()
+    _scheduler_thread = threading.Thread(target=_loop, name="ultorn-scheduler", daemon=True)
+    _scheduler_thread.start()
+    _started = True
+    return _scheduler_thread
+
+
+def stop() -> None:
+    global _started
+    schedule.clear()
+    _started = False

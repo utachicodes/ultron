@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
@@ -10,7 +10,7 @@ from datetime import datetime
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal, get_db
-from app import models, schemas, auth, scanner, ai_router, audit, code_scanner, monitor, compliance, reports
+from app import models, schemas, auth, scanner, ai_router, audit, code_scanner, monitor, compliance, reports, rate_limit, scheduler, worker
 from app.sanitizer import sanitize_text
 
 # Create tables
@@ -48,12 +48,25 @@ def seed_admin():
     finally:
         db.close()
 
+    # Continuous monitoring. Disable with ENABLE_SCHEDULER=false (e.g. when
+    # running multiple API replicas so only one process schedules jobs).
+    import os
+
+    if os.getenv("ENABLE_SCHEDULER", "true").lower() not in ("0", "false", "no"):
+        try:
+            scheduled = scheduler.bootstrap()
+            scheduler.start()
+            print(f"Scheduler started for {len(scheduled)} monitor(s)")
+        except Exception as exc:  # pragma: no cover - startup must not crash
+            print(f"Scheduler failed to start: {exc}")
+
 
 # ============================================================
 # Auth
 # ============================================================
 @app.post("/auth/token", response_model=schemas.Token)
-def login(form_data: dict, db: Session = Depends(get_db)):
+def login(form_data: dict, request: Request, db: Session = Depends(get_db)):
+    rate_limit.check("login", rate_limit.client_ip(request), limit=10, window_seconds=60)
     user = auth.authenticate_user(db, form_data.get("email", ""), form_data.get("password", ""))
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -67,14 +80,15 @@ def read_current_user(current_user: models.User = Depends(auth.get_current_user)
 
 
 @app.post("/auth/register", response_model=schemas.UserOut)
-def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def register(user_in: schemas.RegisterCreate, request: Request, db: Session = Depends(get_db)):
+    rate_limit.check("register", rate_limit.client_ip(request), limit=5, window_seconds=300)
     if db.query(models.User).filter(models.User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     user = models.User(
         email=user_in.email,
         hashed_password=auth.get_password_hash(user_in.password),
         full_name=user_in.full_name,
-        role=user_in.role,
+        role=models.UserRole.client,
     )
     db.add(user)
     db.commit()
@@ -232,13 +246,15 @@ def start_scan(
 
 @app.get("/scans", response_model=List[schemas.ScanOut])
 def list_scans(
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     query = db.query(models.Scan)
     if current_user.role == models.UserRole.client:
         query = query.join(models.Client).filter(models.Client.owner_id == current_user.id)
-    return query.all()
+    return query.order_by(models.Scan.id.desc()).offset(offset).limit(min(limit, 500)).all()
 
 
 @app.get("/scans/{scan_id}", response_model=schemas.ScanOut)
@@ -323,6 +339,8 @@ def run_scan_endpoint(
 @app.get("/scans/{scan_id}/findings", response_model=List[schemas.FindingOut])
 def get_findings(
     scan_id: int,
+    limit: int = 200,
+    offset: int = 0,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
@@ -331,7 +349,14 @@ def get_findings(
         raise HTTPException(status_code=404, detail="Scan not found")
     if current_user.role == models.UserRole.client and scan.client.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    return db.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+    return (
+        db.query(models.Finding)
+        .filter(models.Finding.scan_id == scan_id)
+        .order_by(models.Finding.id)
+        .offset(offset)
+        .limit(min(limit, 1000))
+        .all()
+    )
 
 
 @app.post("/findings/{finding_id}/review")
@@ -384,7 +409,7 @@ def ai_query(
         db=db,
         force_local=force_local,
     )
-    return {"response": response}
+    return response
 
 
 @app.get("/ai/audit", response_model=List[schemas.AIQueryOut])
@@ -400,10 +425,21 @@ def ai_audit_log(
 # ============================================================
 @app.get("/audit", response_model=List[schemas.AuditLogOut])
 def get_audit_log(
+    limit: int = 200,
+    offset: int = 0,
+    action: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
 ):
-    entries = db.query(models.AuditLog).order_by(models.AuditLog.created_at.desc()).all()
+    query = db.query(models.AuditLog)
+    if action:
+        query = query.filter(models.AuditLog.action == action)
+    entries = (
+        query.order_by(models.AuditLog.created_at.desc(), models.AuditLog.id.desc())
+        .offset(offset)
+        .limit(min(limit, 1000))
+        .all()
+    )
     results = []
     for entry in entries:
         out = schemas.AuditLogOut.model_validate(entry)
@@ -537,6 +573,7 @@ def create_monitor(
     db.add(monitor)
     db.commit()
     db.refresh(monitor)
+    scheduler.schedule_monitor(monitor.id)
     audit.log_action(db, "create_monitor", user_id=current_user.id, client_id=client.id,
                      resource_type="monitor", resource_id=str(monitor.id),
                      details={"target": monitor_in.target, "monitor_type": monitor_in.monitor_type})
@@ -554,6 +591,54 @@ def list_monitors(
     return query.all()
 
 
+@app.patch("/monitors/{monitor_id}", response_model=schemas.MonitorOut)
+def update_monitor(
+    monitor_id: int,
+    monitor_in: schemas.MonitorUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    monitor_obj = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+    if not monitor_obj:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+
+    updates = monitor_in.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(monitor_obj, field, value)
+
+    db.commit()
+    db.refresh(monitor_obj)
+
+    if monitor_obj.is_active:
+        scheduler.schedule_monitor(monitor_obj.id)
+    else:
+        scheduler.unschedule_monitor(monitor_obj.id)
+
+    audit.log_action(db, "update_monitor", user_id=current_user.id, client_id=monitor_obj.client_id,
+                     resource_type="monitor", resource_id=str(monitor_obj.id), details=updates)
+    return monitor_obj
+
+
+@app.delete("/monitors/{monitor_id}")
+def delete_monitor(
+    monitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    monitor_obj = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+    if not monitor_obj:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+
+    client_id = monitor_obj.client_id
+    db.query(models.Alert).filter(models.Alert.monitor_id == monitor_id).delete()
+    db.delete(monitor_obj)
+    db.commit()
+    scheduler.unschedule_monitor(monitor_id)
+    audit.log_action(db, "delete_monitor", user_id=current_user.id, client_id=client_id,
+                     resource_type="monitor", resource_id=str(monitor_id), details={})
+    return {"deleted": True}
+
+
 @app.get("/monitors/{monitor_id}/alerts", response_model=List[schemas.AlertOut])
 def get_monitor_alerts(
     monitor_id: int,
@@ -568,6 +653,50 @@ def get_monitor_alerts(
     return db.query(models.Alert).filter(models.Alert.monitor_id == monitor_id).all()
 
 
+@app.get("/alerts", response_model=List[schemas.AlertOut])
+def list_alerts(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """All alerts across monitors, newest first, optionally filtered."""
+    query = db.query(models.Alert).join(models.Monitor)
+    if current_user.role == models.UserRole.client:
+        query = query.join(models.Client).filter(models.Client.owner_id == current_user.id)
+    if status:
+        query = query.filter(models.Alert.status == status)
+    if severity:
+        query = query.filter(models.Alert.severity == severity)
+    return query.order_by(models.Alert.created_at.desc(), models.Alert.id.desc()).all()
+
+
+@app.patch("/alerts/{alert_id}", response_model=schemas.AlertOut)
+def update_alert(
+    alert_id: int,
+    alert_in: schemas.AlertUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin, models.UserRole.analyst)),
+):
+    alert_obj = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+    if not alert_obj:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    valid = {"open", "acknowledged", "resolved", "false_positive"}
+    if alert_in.status not in valid:
+        raise HTTPException(status_code=400, detail=f"status must be one of {sorted(valid)}")
+
+    alert_obj.status = alert_in.status
+    alert_obj.resolved_at = datetime.utcnow() if alert_in.status in ("resolved", "false_positive") else None
+    db.commit()
+    db.refresh(alert_obj)
+
+    audit.log_action(db, "update_alert", user_id=current_user.id, client_id=alert_obj.monitor.client_id,
+                     resource_type="alert", resource_id=str(alert_obj.id),
+                     details={"status": alert_in.status, "note": alert_in.note})
+    return alert_obj
+
+
 @app.post("/monitors/{monitor_id}/check")
 def run_monitor_check(
     monitor_id: int,
@@ -578,24 +707,16 @@ def run_monitor_check(
     if not monitor_obj:
         raise HTTPException(status_code=404, detail="Monitor not found")
 
-    baseline = json.loads(monitor_obj.baseline_config) if monitor_obj.baseline_config else None
-    alerts = monitor.run_monitoring_check(monitor_obj.monitor_type, monitor_obj.target, baseline)
+    # Operator-initiated checks run even when a monitor is paused, but are
+    # recorded in the same way as scheduled checks.
+    alerts_created = worker.process_monitor_check(monitor_id, force=True)
 
-    monitor_obj.last_check = datetime.utcnow()
-
-    for alert_data in alerts:
-        alert = models.Alert(
-            monitor_id=monitor_obj.id,
-            title=alert_data.get("title", "Alert"),
-            description=alert_data.get("description"),
-            severity=alert_data.get("severity", "medium"),
-            evidence=json.dumps(alert_data.get("evidence")) if alert_data.get("evidence") else None,
-            status="open",
-        )
-        db.add(alert)
-
-    db.commit()
-    return {"alerts_created": len(alerts)}
+    audited = db.query(models.Monitor).filter(models.Monitor.id == monitor_id).first()
+    audit.log_action(db, "run_monitor_check", user_id=current_user.id,
+                     client_id=audited.client_id if audited else None,
+                     resource_type="monitor", resource_id=str(monitor_id),
+                     details={"alerts_created": alerts_created})
+    return {"alerts_created": alerts_created}
 
 
 # ============================================================
