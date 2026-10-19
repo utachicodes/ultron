@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Data sanitization layer — sovereignty control.
+"""Data sanitization layer: sovereignty control.
 
 Strips client names, IPs, credentials, API keys, JWTs, emails, phones,
 SSNs, and credit cards before any data reaches an external AI model.

@@ -196,7 +196,7 @@ def verify_scope(
 
 
 # ============================================================
-# Scans — NO verification gate, runs on all scopes
+# Scans: NO verification gate, runs on all scopes
 # ============================================================
 @app.post("/scans", response_model=schemas.ScanOut)
 def start_scan(
@@ -266,7 +266,7 @@ def run_scan_endpoint(
     scan.status = "running"
     db.commit()
 
-    # NO verification gate — runs on all non-excluded scopes
+    # NO verification gate: runs on all non-excluded scopes
     scopes = db.query(models.ScanScope).filter(
         models.ScanScope.client_id == scan.client_id,
         models.ScanScope.is_excluded == False,
@@ -426,7 +426,7 @@ def sanitize_endpoint(
 
 
 # ============================================================
-# Admin — user management
+# Admin: user management
 # ============================================================
 @app.get("/admin/users", response_model=List[schemas.UserOut])
 def admin_list_users(
@@ -459,7 +459,7 @@ def admin_update_user(
 
 
 # ============================================================
-# Admin — API key management
+# Admin: API key management
 # ============================================================
 @app.get("/admin/api-keys", response_model=List[schemas.APIKeyOut])
 def admin_list_api_keys(
