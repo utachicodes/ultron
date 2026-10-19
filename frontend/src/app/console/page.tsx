@@ -2,8 +2,65 @@
 
 import { useState, useEffect } from 'react'
 import '../marketing-page.css'
+import '../console.css'
+import Modal from '../../components/Modal'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const ACCENT = '#7c3aed'
+const ACCENT_SOFT = 'rgba(124,58,237,0.12)'
+const ACCENT_BORDER = 'rgba(124,58,237,0.3)'
+
+const ICONS: Record<string, React.ReactNode> = {
+  dashboard: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  ),
+  clients: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <circle cx="17.5" cy="8.5" r="2.4" /><path d="M15.8 14.2c2.6.4 4.7 2.6 4.7 5.8" />
+    </svg>
+  ),
+  scans: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+    </svg>
+  ),
+  findings: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4" /><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  ai: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+      <circle cx="12" cy="12" r="3.2" />
+    </svg>
+  ),
+  audit: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" />
+    </svg>
+  ),
+  admin: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="2.8" />
+      <path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.5-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14 2h-4l-.5 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.5 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.5 2.3-.9c.77.66 1.65 1.17 2.6 1.5L10 22h4l.5-2.4a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.5-2-1.5Z" />
+    </svg>
+  ),
+  collapse: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M15 5l-7 7 7 7" />
+    </svg>
+  ),
+  menu: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  ),
+}
 
 function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
   const [email, setEmail] = useState('admin@ultorn.local')
@@ -87,6 +144,85 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
   )
 }
 
+// ============================================================
+// Shared: stat tile, badge, split list/detail panel
+// ============================================================
+function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.statValue}>{value}</div>
+      {hint && <div style={styles.statHint}>{hint}</div>}
+    </div>
+  )
+}
+
+function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: string }) {
+  const tones: any = {
+    neutral: { background: 'rgba(255,255,255,0.08)', color: '#d4d4d8' },
+    success: { background: 'rgba(52,211,153,0.15)', color: '#6ee7b7' },
+    warning: { background: 'rgba(251,191,36,0.15)', color: '#fcd34d' },
+    danger: { background: 'rgba(248,113,113,0.15)', color: '#fca5a5' },
+    accent: { background: ACCENT_SOFT, color: '#d8b4fe' },
+  }
+  return (
+    <span style={{ ...styles.badge, ...tones[tone] }}>{children}</span>
+  )
+}
+
+function SplitPanel({
+  title,
+  action,
+  items,
+  selectedId,
+  onSelect,
+  renderRow,
+  renderDetail,
+  emptyLabel,
+}: {
+  title: string
+  action?: React.ReactNode
+  items: any[]
+  selectedId: any
+  onSelect: (item: any) => void
+  renderRow: (item: any, selected: boolean) => React.ReactNode
+  renderDetail: (item: any) => React.ReactNode
+  emptyLabel: string
+}) {
+  const selected = items.find((i) => i.id === selectedId) || null
+
+  return (
+    <div style={styles.panelDark}>
+      <div style={styles.panelHeader}>
+        <h3 style={styles.panelTitle}>{title}</h3>
+        {action}
+      </div>
+      <div style={styles.panelBody}>
+        <div style={styles.listPane}>
+          {items.length === 0 && <div style={styles.emptyState}>{emptyLabel}</div>}
+          {items.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => onSelect(item)}
+              style={{
+                ...styles.listRow,
+                ...(item.id === selectedId ? styles.listRowActive : {}),
+              }}
+            >
+              {renderRow(item, item.id === selectedId)}
+            </div>
+          ))}
+        </div>
+        <div style={styles.detailPane}>
+          {selected ? renderDetail(selected) : (
+            <div style={styles.emptyState}>Select an item to see details.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Page() {
   const [token, setToken] = useState<string | null>(null)
 
@@ -99,8 +235,13 @@ function Page() {
   const [scans, setScans] = useState<any[]>([])
   const [findings, setFindings] = useState<any[]>([])
   const [audit, setAudit] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ text: '', type: 'info' })
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('ultorn_sidebar_collapsed') === 'true')
+  }, [])
 
   useEffect(() => {
     if (token) {
@@ -140,263 +281,341 @@ function Page() {
     return <LoginScreen onToken={(t: string) => { setToken(t); setView('dashboard') }} />
   }
 
+  const NAV_GROUPS = [
+    {
+      label: 'Overview',
+      items: [{ key: 'dashboard', label: 'Dashboard', icon: 'dashboard' }],
+    },
+    {
+      label: 'Operations',
+      items: [
+        { key: 'clients', label: 'Clients', icon: 'clients' },
+        { key: 'scans', label: 'Scans', icon: 'scans' },
+        { key: 'findings', label: 'Findings', icon: 'findings' },
+      ],
+    },
+    {
+      label: 'Intelligence',
+      items: [{ key: 'ai', label: 'AI Guard', icon: 'ai' }],
+    },
+    {
+      label: 'Governance',
+      items: [
+        { key: 'audit', label: 'Audit', icon: 'audit' },
+        ...(user?.role === 'admin' ? [{ key: 'admin', label: 'Admin', icon: 'admin' }] : []),
+      ],
+    },
+  ]
+
+  const currentLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === view)?.label || 'Ultorn'
+
+  const ctx = {
+    token, api, notify, user,
+    clients, setClients,
+    scans, setScans,
+    findings, setFindings,
+    audit, setAudit,
+    setView,
+  }
+
   // ---------- MAIN LAYOUT ----------
   return (
-    <div style={styles.app}>
-      <nav style={styles.nav}>
-        <div style={styles.navBrand}>
-          <img src="/brand/utachi-logo-white.png" alt="Utachi Industries" style={styles.navBrandLogo} />
-          <span style={styles.navBrandDivider} />
-          <span style={styles.navBrandAccent}>Ultorn</span>
+    <div className="console-shell" style={styles.shell}>
+      <div
+        className={`console-backdrop${mobileOpen ? ' open' : ''}`}
+        onClick={() => setMobileOpen(false)}
+      />
+
+      <aside className={`console-sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`} style={styles.sidebar}>
+        <div className="sidebar-brand" style={styles.sidebarBrand}>
+          <img src="/brand/utachi-logo-white.png" alt="Utachi Industries" className="sidebar-logo-img" style={styles.navBrandLogo} />
+          <span className="sidebar-brand-text-wrap">
+            <span style={styles.navBrandDivider} />
+            <span className="sidebar-brand-text" style={styles.sidebarBrandText}>Ultorn</span>
+          </span>
+          <button
+            className="sidebar-collapse-btn"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setCollapsed((v) => { localStorage.setItem('ultorn_sidebar_collapsed', (!v).toString()); return !v })}
+          >
+            {ICONS.collapse}
+          </button>
         </div>
-        <div style={styles.navLinks}>
-          <button
-            onClick={() => setView('dashboard')}
-            style={view === 'dashboard' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setView('clients')}
-            style={view === 'clients' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            Clients
-          </button>
-          <button
-            onClick={() => setView('scans')}
-            style={view === 'scans' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            Scans
-          </button>
-          <button
-            onClick={() => setView('findings')}
-            style={view === 'findings' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            Findings
-          </button>
-          <button
-            onClick={() => setView('ai')}
-            style={view === 'ai' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            AI Guard (Sovereign)
-          </button>
-          <button
-            onClick={() => setView('audit')}
-            style={view === 'audit' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-          >
-            Audit Log
-          </button>
-          {user?.role === 'admin' && (
-            <button
-              onClick={() => setView('admin')}
-              style={view === 'admin' ? { ...styles.navLink, ...styles.navActive } : styles.navLink}
-            >
-              Admin
-            </button>
-          )}
-          <button
-            onClick={() => {
-              localStorage.removeItem('token')
-              setToken(null)
-              setView('login')
-            }}
-            style={{ ...styles.navLink, background: '#fee2e2', color: '#991b1b' }}
-          >
+
+        <div style={styles.sidebarNavScroll}>
+          {NAV_GROUPS.map((group) => (
+            <nav key={group.label} style={styles.sidebarNav}>
+              <div className="sidebar-group-label" style={styles.sidebarGroupLabel}>{group.label}</div>
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => { setView(item.key); setMobileOpen(false) }}
+                  style={view === item.key ? { ...styles.sidebarLink, ...styles.sidebarLinkActive } : styles.sidebarLink}
+                  className="sidebar-link"
+                >
+                  <span style={styles.sidebarIcon}>{ICONS[item.icon]}</span>
+                  <span className="sidebar-label">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          ))}
+        </div>
+
+        <div style={styles.sidebarFooter}>
+          <div className="sidebar-user" style={styles.sidebarUser}>
+            <div style={styles.sidebarAvatar}>{(user?.email || '?')[0].toUpperCase()}</div>
+            <div className="sidebar-user-info" style={{ minWidth: 0 }}>
+              <div style={styles.sidebarUserEmail}>{user?.email || '…'}</div>
+              <div style={styles.sidebarUserRole}>{user?.role || ''}</div>
+            </div>
+          </div>
+          <button onClick={() => { localStorage.removeItem('token'); setToken(null); setView('login') }} style={styles.sidebarSignOut}>
             Sign out
           </button>
         </div>
-      </nav>
+      </aside>
 
-      <main style={styles.main}>
-        {message.text && (
-          <div
-            style={{
-              ...styles.alert,
-              background: message.type === 'error' ? '#fee2e2' : '#dbeafe',
-              color: message.type === 'error' ? '#991b1b' : '#1e40af',
-              border: message.type === 'error' ? '1px solid #fecaca' : '1px solid #bfdbfe',
-            }}
-          >
-            {message.text}
-          </div>
-        )}
+      <div className="console-main" style={{ flex: 1, minWidth: 0 }}>
+        <div className="console-mobile-bar">
+          <button className="sidebar-burger" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
+            {ICONS.menu}
+          </button>
+          <img src="/brand/utachi-logo.png" alt="Utachi Industries" style={{ height: '20px' }} />
+          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{currentLabel}</span>
+        </div>
 
-        {view === 'dashboard' && <Dashboard />}
-        {view === 'clients' && <ClientsSection />}
-        {view === 'scans' && <ScansSection />}
-        {view === 'findings' && <FindingsSection />}
-        {view === 'ai' && <AISection />}
-        {view === 'audit' && <AuditSection />}
-        {view === 'admin' && user?.role === 'admin' && <AdminSection />}
-      </main>
+        <main style={styles.main}>
+          {message.text && (
+            <div
+              style={{
+                ...styles.alert,
+                background: message.type === 'error' ? 'rgba(220,38,38,0.08)' : ACCENT_SOFT,
+                color: message.type === 'error' ? '#b91c1c' : '#5b21b6',
+                border: message.type === 'error' ? '1px solid rgba(220,38,38,0.25)' : `1px solid ${ACCENT_BORDER}`,
+              }}
+            >
+              {message.text}
+            </div>
+          )}
+
+          {view === 'dashboard' && <Dashboard ctx={ctx} />}
+          {view === 'clients' && <ClientsSection ctx={ctx} />}
+          {view === 'scans' && <ScansSection ctx={ctx} />}
+          {view === 'findings' && <FindingsSection ctx={ctx} />}
+          {view === 'ai' && <AISection ctx={ctx} />}
+          {view === 'audit' && <AuditSection ctx={ctx} />}
+          {view === 'admin' && user?.role === 'admin' && <AdminSection ctx={ctx} />}
+        </main>
+      </div>
     </div>
   )
+}
 
-  // ============================================================
-  // DASHBOARD
-  // ============================================================
-  function Dashboard() {
+// ============================================================
+// Sections — module-level components (never redefined on re-render)
+// ============================================================
+function severityTone(s: string) {
+  switch (s) {
+    case 'critical': return 'danger'
+    case 'high': return 'warning'
+    case 'medium': return 'accent'
+    default: return 'neutral'
+  }
+}
+
+function Dashboard({ ctx }: { ctx: any }) {
+  const { api, token, clients, setClients, scans, setScans, audit, setAudit } = ctx
     const [stats, setStats] = useState<any>({})
+    const [selectedId, setSelectedId] = useState<any>(null)
 
     useEffect(() => {
       api('/scans').then((data: any) => {
         setScans(data)
-        const critical = data.reduce(
-          (acc: number, s: any) => acc + (s.summary?.critical || 0),
-          0
-        )
-        const high = data.reduce(
-          (acc: number, s: any) => acc + (s.summary?.high || 0),
-          0
-        )
+        const critical = data.reduce((acc: number, s: any) => acc + (s.summary?.critical || 0), 0)
+        const high = data.reduce((acc: number, s: any) => acc + (s.summary?.high || 0), 0)
         setStats({ totalScans: data.length, critical, high })
       })
       api('/clients').then((data: any) => setClients(data))
-      api('/audit').then((data: any) => setAudit(data.slice(0, 5)))
+      api('/audit').then((data: any) => setAudit(data.slice(0, 8)))
     }, [token])
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Dashboard</h2>
+        <h1 style={styles.pageTitle}>Dashboard</h1>
         <div style={styles.statGrid}>
-          <StatCard label="Total Scans" value={stats.totalScans || 0} color="#3b82f6" />
-          <StatCard label="Critical Findings" value={stats.critical || 0} color="#ef4444" />
-          <StatCard label="High Findings" value={stats.high || 0} color="#f59e0b" />
-          <StatCard label="Clients" value={clients.length} color="#10b981" />
+          <StatCard label="Total Scans" value={stats.totalScans || 0} />
+          <StatCard label="Critical Findings" value={stats.critical || 0} hint={(stats.critical || 0) > 0 ? 'Needs review' : 'Clear'} />
+          <StatCard label="High Findings" value={stats.high || 0} />
+          <StatCard label="Clients" value={clients.length} />
         </div>
 
-        <div style={styles.sectionGrid}>
-          <div style={styles.card}>
-            <h3 style={styles.h3}>Recent Scans</h3>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Findings</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(scans || []).slice(0, 5).map((s: any) => (
-                  <tr key={s.id} style={styles.tableRow}>
-                    <td>{s.client?.name || '—'}</td>
-                    <td>{s.scan_type}</td>
-                    <td
-                      style={{
-                        ...styles.tableCell,
-                        color: s.status === 'completed' ? '#10b981' : '#f59e0b',
-                      }}
-                    >
-                      {s.status}
-                    </td>
-                    <td>
-                      {s.summary?.total_findings || 0}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <SplitPanel
+          title="Recent Scans"
+          items={scans.slice(0, 10)}
+          selectedId={selectedId}
+          onSelect={(s) => setSelectedId(s.id)}
+          emptyLabel="No scans yet."
+          renderRow={(s) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{s.client?.name || '-'}</div>
+                <div style={styles.listRowSub}>{s.scan_type}</div>
+              </div>
+              <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge>
+            </>
+          )}
+          renderDetail={(s) => (
+            <>
+              <div style={styles.detailHeading}>{s.client?.name || '-'}</div>
+              <div style={styles.detailSub}>{s.scan_type} · <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge></div>
+              <div style={styles.subCardGrid}>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>Findings</div><div style={styles.subCardValue}>{s.summary?.total_findings || 0}</div></div>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>Critical</div><div style={styles.subCardValue}>{s.summary?.critical || 0}</div></div>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>High</div><div style={styles.subCardValue}>{s.summary?.high || 0}</div></div>
+              </div>
+            </>
+          )}
+        />
 
-          <div style={styles.card}>
-            <h3 style={styles.h3}>Recent Audit Activity</h3>
-            <ul style={styles.list}>
-              {(audit || []).map((a: any) => (
-                <li key={a.id} style={styles.listItem}>
-                  <strong>{a.action}</strong>{' — '}
-                  {a.resource_type} #{a.resource_id} <br />
-                  <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>
-                    {new Date(a.created_at).toLocaleString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
+        <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
+          <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Recent Audit Activity</h3></div>
+          <div style={{ padding: '0 1.25rem 1.25rem' }}>
+            {audit.map((a: any) => (
+              <div key={a.id} style={styles.auditRow}>
+                <div>
+                  <strong style={{ color: '#f5f5f7' }}>{a.action}</strong>
+                  <span style={styles.listRowSub}> · {a.resource_type} #{a.resource_id}</span>
+                </div>
+                <span style={styles.listRowSub}>{new Date(a.created_at).toLocaleString()}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     )
   }
 
-  // ============================================================
-  // CLIENTS
-  // ============================================================
-  function ClientsSection() {
-    const [newClient, setNewClient] = useState({ name: '', contact_email: '' })
+// ============================================================
+// CLIENTS
+// ============================================================
+function ClientsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, clients, setClients } = ctx
+    const [newClient, setNewClient] = useState({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
+    const [showAdd, setShowAdd] = useState(false)
+    const [selectedId, setSelectedId] = useState<any>(null)
+    const [scopes, setScopes] = useState<any[]>([])
+    const [newScope, setNewScope] = useState({ target: '', target_type: 'domain' })
 
     useEffect(() => {
       api('/clients').then((data: any) => setClients(data))
     }, [token])
 
+    useEffect(() => {
+      if (selectedId) {
+        api(`/clients/${selectedId}/scopes`).then((data: any) => setScopes(Array.isArray(data) ? data : []))
+      }
+    }, [selectedId])
+
     const createClient = async (e: any) => {
       e.preventDefault()
-      await api('/clients', {
-        method: 'POST',
-        body: JSON.stringify(newClient),
-      })
-      setNewClient({ name: '', contact_email: '' })
+      await api('/clients', { method: 'POST', body: JSON.stringify(newClient) })
+      setNewClient({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
+      setShowAdd(false)
       api('/clients').then((data: any) => setClients(data))
       notify('Client created')
     }
 
+    const addScope = async (e: any) => {
+      e.preventDefault()
+      await api(`/clients/${selectedId}/scopes`, { method: 'POST', body: JSON.stringify(newScope) })
+      setNewScope({ target: '', target_type: 'domain' })
+      api(`/clients/${selectedId}/scopes`).then((data: any) => setScopes(Array.isArray(data) ? data : []))
+      notify('Scope added')
+    }
+
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Clients</h2>
-        <form onSubmit={createClient} style={styles.form}>
-          <input
-            placeholder="Client name"
-            value={newClient.name}
-            onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-            style={styles.input}
-          />
-          <input
-            placeholder="Contact email"
-            value={newClient.contact_email}
-            onChange={(e) => setNewClient({ ...newClient, contact_email: e.target.value })}
-            style={styles.input}
-          />
-          <button type="submit" style={styles.button}>Add Client</button>
-        </form>
+        <h1 style={styles.pageTitle}>Clients</h1>
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c: any) => (
-              <tr key={c.id} style={styles.tableRow}>
-                <td>{c.name}</td>
-                <td>{c.contact_email || '—'}</td>
-                <td>{c.is_active ? 'Active' : 'Inactive'}</td>
-                <td>
-                  <button
-                    onClick={() => {
-                      setView('scans')
-                      notify(`Scopes for ${c.name}`)
-                    }}
-                    style={styles.buttonSmall}
+        {showAdd && (
+          <Modal title="Add Client" onClose={() => setShowAdd(false)}>
+            <form onSubmit={createClient} style={styles.form}>
+              <input placeholder="Client name *" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} style={styles.input} autoFocus required />
+              <input placeholder="Legal name" value={newClient.legal_name} onChange={(e) => setNewClient({ ...newClient, legal_name: e.target.value })} style={styles.input} />
+              <input placeholder="Contact email" type="email" value={newClient.contact_email} onChange={(e) => setNewClient({ ...newClient, contact_email: e.target.value })} style={styles.input} />
+              <input placeholder="Contact phone" type="tel" value={newClient.contact_phone} onChange={(e) => setNewClient({ ...newClient, contact_phone: e.target.value })} style={styles.input} />
+              <button type="submit" style={styles.button}>Add Client</button>
+            </form>
+          </Modal>
+        )}
+
+        <SplitPanel
+          title="All Clients"
+          action={<button onClick={() => setShowAdd(true)} style={styles.darkActionBtn}>+ Add Client</button>}
+          items={clients}
+          selectedId={selectedId}
+          onSelect={(c) => setSelectedId(c.id)}
+          emptyLabel="No clients yet."
+          renderRow={(c) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{c.name}</div>
+                <div style={styles.listRowSub}>{c.contact_email || 'No contact email'}</div>
+              </div>
+              <Badge tone={c.is_active ? 'success' : 'neutral'}>{c.is_active ? 'Active' : 'Inactive'}</Badge>
+            </>
+          )}
+          renderDetail={(c) => (
+            <>
+              <div style={styles.detailHeading}>{c.name}</div>
+              {c.legal_name && <div style={styles.listRowSub}>{c.legal_name}</div>}
+              <div style={styles.detailSub}>
+                {c.contact_email || 'No contact email'} · {c.contact_phone || 'No contact phone'}
+              </div>
+
+              <div style={{ marginTop: '1.25rem' }}>
+                <div style={styles.detailLabel}>Scan scopes</div>
+                {scopes.length === 0 && <div style={styles.listRowSub}>No scopes added.</div>}
+                {scopes.map((s: any) => (
+                  <div key={s.id} style={styles.scopeRow}>
+                    <span>{s.target}</span>
+                    <Badge tone="neutral">{s.target_type}</Badge>
+                  </div>
+                ))}
+                <form onSubmit={addScope} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <input
+                    placeholder="domain / IP / URL"
+                    value={newScope.target}
+                    onChange={(e) => setNewScope({ ...newScope, target: e.target.value })}
+                    style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                  />
+                  <select
+                    value={newScope.target_type}
+                    onChange={(e) => setNewScope({ ...newScope, target_type: e.target.value })}
+                    style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
                   >
-                    Manage Scopes
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <option value="domain">Domain</option>
+                    <option value="ip">IP</option>
+                    <option value="url">URL</option>
+                  </select>
+                  <button type="submit" style={styles.darkActionBtn}>Add</button>
+                </form>
+              </div>
+            </>
+          )}
+        />
       </div>
     )
   }
 
-  // ============================================================
-  // SCANS
-  // ============================================================
-  function ScansSection() {
+// ============================================================
+// SCANS
+// ============================================================
+function ScansSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, clients, setClients, scans, setScans } = ctx
     const [newScan, setNewScan] = useState({ client_id: '', scan_type: 'vulnerability' })
+    const [showStart, setShowStart] = useState(false)
+    const [selectedId, setSelectedId] = useState<any>(null)
 
     useEffect(() => {
       api('/scans').then((data: any) => setScans(data))
@@ -405,12 +624,10 @@ function Page() {
 
     const startScan = async (e: any) => {
       e.preventDefault()
-      await api('/scans', {
-        method: 'POST',
-        body: JSON.stringify({ client_id: parseInt(newScan.client_id), scan_type: newScan.scan_type }),
-      })
+      await api('/scans', { method: 'POST', body: JSON.stringify({ client_id: parseInt(newScan.client_id), scan_type: newScan.scan_type }) })
+      setShowStart(false)
       api('/scans').then((data: any) => setScans(data))
-      notify('Scan started — runs on all scopes, no verification gate')
+      notify('Scan started: runs on all scopes, no verification gate')
     }
 
     const runScan = async (id: number) => {
@@ -421,208 +638,147 @@ function Page() {
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Security Assessments</h2>
+        <h1 style={styles.pageTitle}>Security Assessments</h1>
         <p style={styles.hint}>
-          No verification gate — scans run on all in-scope targets immediately.
-          Full data extraction: banners, headers, page content, body.
+          No verification gate. Scans run on all in-scope targets immediately. Full data extraction: banners, headers, page content, body.
         </p>
 
-        <form onSubmit={startScan} style={{ ...styles.form, marginBottom: '1rem' }}>
-          <select
-            value={newScan.client_id}
-            onChange={(e) => setNewScan({ ...newScan, client_id: e.target.value })}
-            style={styles.input}
-          >
-            <option value="">Select client</option>
-            {clients.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={newScan.scan_type}
-            onChange={(e) => setNewScan({ ...newScan, scan_type: e.target.value })}
-            style={styles.input}
-          >
-            <option value="vulnerability">Vulnerability Assessment</option>
-            <option value="code">AI Code Scan</option>
-            <option value="monitoring">Continuous Monitoring</option>
-          </select>
-          <button type="submit" style={styles.button}>Start Scan</button>
-        </form>
+        {showStart && (
+          <Modal title="Start Scan" onClose={() => setShowStart(false)}>
+            <form onSubmit={startScan} style={styles.form}>
+              <select value={newScan.client_id} onChange={(e) => setNewScan({ ...newScan, client_id: e.target.value })} style={styles.input}>
+                <option value="">Select client</option>
+                {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={newScan.scan_type} onChange={(e) => setNewScan({ ...newScan, scan_type: e.target.value })} style={styles.input}>
+                <option value="vulnerability">Vulnerability Assessment</option>
+                <option value="code">AI Code Scan</option>
+                <option value="monitoring">Continuous Monitoring</option>
+              </select>
+              <button type="submit" style={styles.button}>Start Scan</button>
+            </form>
+          </Modal>
+        )}
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Critical</th>
-              <th>High</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scans.map((s: any) => {
-              const summary = s.summary || {}
-              return (
-                <tr key={s.id} style={styles.tableRow}>
-                  <td>{s.client?.name || '—'}</td>
-                  <td>{s.scan_type}</td>
-                  <td style={{ color: s.status === 'completed' ? '#10b981' : '#f59e0b' }}>
-                    {s.status}
-                  </td>
-                  <td>{summary.critical || 0}</td>
-                  <td>{summary.high || 0}</td>
-                  <td>
-                    {s.status !== 'running' && (
-                      <button
-                        onClick={() => runScan(s.id)}
-                        style={styles.buttonSmall}
-                      >
-                        Run Scan
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <SplitPanel
+          title="Scans"
+          action={<button onClick={() => setShowStart(true)} style={styles.darkActionBtn}>+ Start Scan</button>}
+          items={scans}
+          selectedId={selectedId}
+          onSelect={(s) => setSelectedId(s.id)}
+          emptyLabel="No scans yet."
+          renderRow={(s) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{s.client?.name || '-'}</div>
+                <div style={styles.listRowSub}>{s.scan_type}</div>
+              </div>
+              <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge>
+            </>
+          )}
+          renderDetail={(s) => (
+            <>
+              <div style={styles.detailHeading}>{s.client?.name || '-'}</div>
+              <div style={styles.detailSub}>{s.scan_type} · <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge></div>
+              <div style={styles.subCardGrid}>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>Findings</div><div style={styles.subCardValue}>{s.summary?.total_findings || 0}</div></div>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>Critical</div><div style={styles.subCardValue}>{s.summary?.critical || 0}</div></div>
+                <div style={styles.subCard}><div style={styles.subCardLabel}>High</div><div style={styles.subCardValue}>{s.summary?.high || 0}</div></div>
+              </div>
+              {s.status !== 'running' && (
+                <button onClick={() => runScan(s.id)} style={{ ...styles.darkActionBtn, marginTop: '1.25rem' }}>Run Scan</button>
+              )}
+            </>
+          )}
+        />
       </div>
     )
   }
 
-  // ============================================================
-  // FINDINGS
-  // ============================================================
-  function FindingsSection() {
-    const [review, setReview] = useState({ findingId: '', status: 'open' })
+// ============================================================
+// FINDINGS
+// ============================================================
+function FindingsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, findings, setFindings } = ctx
+    const [selectedId, setSelectedId] = useState<any>(null)
+    const [reviewStatus, setReviewStatus] = useState('fixed')
 
     useEffect(() => {
       api('/scans').then((data: any) => {
-        const allFindings = data.flatMap((s: any) => s.findings || [])
-        setFindings(allFindings)
+        setFindings(data.flatMap((s: any) => s.findings || []))
       })
     }, [token])
 
-    const reviewFinding = async (e: any) => {
-      e.preventDefault()
-      await api(`/findings/${review.findingId}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ status: review.status }),
-      })
-      notify('Finding reviewed — human analyst attested')
+    const reviewFinding = async (id: number) => {
+      await api(`/findings/${id}/review`, { method: 'POST', body: JSON.stringify({ status: reviewStatus }) })
+      notify('Finding reviewed: human analyst attested')
+      api('/scans').then((data: any) => setFindings(data.flatMap((s: any) => s.findings || [])))
     }
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Findings & Remediation</h2>
+        <h1 style={styles.pageTitle}>Findings & Remediation</h1>
         <p style={styles.hint}>
-          Critical and high findings require named human analyst review before
-          remediation. No autonomous exploitation.
+          Critical and high findings require named human analyst review before remediation. No autonomous exploitation.
         </p>
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Severity</th>
-              <th>Target</th>
-              <th>Status</th>
-              <th>Reviewed By</th>
-              <th>Evidence</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {findings.map((f: any) => {
-              const evidence = f.evidence ? JSON.parse(f.evidence) : {}
-              return (
-                <tr key={f.id} style={styles.tableRow}>
-                  <td>{f.title}</td>
-                  <td style={{ color: severityColor(f.severity), fontWeight: '600' }}>
-                    {f.severity}
-                  </td>
-                  <td>{f.target}</td>
-                  <td>{f.status}</td>
-                  <td>{f.reviewed_by_user?.email || '—'}</td>
-                  <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.8rem', color: '#6b7280' }}>
-                    {JSON.stringify(evidence).slice(0, 100)}...
-                  </td>
-                  <td>
-                    {f.severity === 'critical' || f.severity === 'high' ? (
-                      <select
-                        value={review.status}
-                        onChange={(e) => setReview({ ...review, status: e.target.value })}
-                        style={styles.inputSmall}
-                      >
-                        <option value="open">Open</option>
-                        <option value="fixed">Fixed</option>
-                        <option value="false_positive">False Positive</option>
-                        <option value="acknowledged">Acknowledged</option>
-                      </select>
-                    ) : (
-                      <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>Auto-cleared</span>
-                    )}
-                  </td>
-                  <td>
-                    {(f.severity === 'critical' || f.severity === 'high') && (
-                      <button
-                        onClick={() => setReview({ findingId: f.id, status: review.status })}
-                        style={styles.buttonSmall}
-                      >
-                        Submit Review
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <SplitPanel
+          title="Findings"
+          items={findings}
+          selectedId={selectedId}
+          onSelect={(f) => { setSelectedId(f.id); setReviewStatus('fixed') }}
+          emptyLabel="No findings yet."
+          renderRow={(f) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{f.title}</div>
+                <div style={styles.listRowSub}>{f.target}</div>
+              </div>
+              <Badge tone={severityTone(f.severity)}>{f.severity}</Badge>
+            </>
+          )}
+          renderDetail={(f) => {
+            const evidence = f.evidence ? JSON.parse(f.evidence) : {}
+            const needsReview = f.severity === 'critical' || f.severity === 'high'
+            return (
+              <>
+                <div style={styles.detailHeading}>{f.title}</div>
+                <div style={styles.detailSub}>
+                  <Badge tone={severityTone(f.severity)}>{f.severity}</Badge> · {f.target} · status {f.status}
+                </div>
+                <div style={styles.detailLabel}>Evidence</div>
+                <div style={styles.codeBlock}>{JSON.stringify(evidence, null, 2).slice(0, 600)}</div>
+                <div style={styles.detailLabel}>Reviewed by</div>
+                <div style={styles.listRowSub}>{f.reviewed_by_user?.email || 'Not yet reviewed'}</div>
 
-        <div style={{ ...styles.card, marginTop: '1rem' }}>
-          <h3 style={styles.h3}>Human Review Attestation</h3>
-          <form onSubmit={reviewFinding} style={styles.form}>
-            <input
-              placeholder="Finding ID"
-              value={review.findingId}
-              onChange={(e) => setReview({ ...review, findingId: e.target.value })}
-              style={styles.input}
-            />
-            <select
-              value={review.status}
-              onChange={(e) => setReview({ ...review, status: e.target.value })}
-              style={styles.input}
-            >
-              <option value="open">Open</option>
-              <option value="fixed">Fixed</option>
-              <option value="false_positive">False Positive</option>
-              <option value="acknowledged">Acknowledged</option>
-            </select>
-            <button type="submit" style={styles.button}>Attest Review</button>
-          </form>
-        </div>
+                {needsReview && (
+                  <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
+                    <select
+                      value={reviewStatus}
+                      onChange={(e) => setReviewStatus(e.target.value)}
+                      style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                    >
+                      <option value="open">Open</option>
+                      <option value="fixed">Fixed</option>
+                      <option value="false_positive">False Positive</option>
+                      <option value="acknowledged">Acknowledged</option>
+                    </select>
+                    <button onClick={() => reviewFinding(f.id)} style={styles.darkActionBtn}>Attest Review</button>
+                  </div>
+                )}
+              </>
+            )
+          }}
+        />
       </div>
     )
   }
 
-  function severityColor(s: string) {
-    switch (s) {
-      case 'critical': return '#dc2626'
-      case 'high': return '#ea580c'
-      case 'medium': return '#d97706'
-      case 'low': return '#65a30d'
-      default: return '#6b7280'
-    }
-  }
-
-  // ============================================================
-  // AI / SOVEREIGNTY
-  // ============================================================
-  function AISection() {
+// ============================================================
+// AI / SOVEREIGNTY
+// ============================================================
+function AISection({ ctx }: { ctx: any }) {
+  const { api, token } = ctx
     const [prompt, setPrompt] = useState('')
     const [clientName, setClientName] = useState('')
     const [response, setResponse] = useState('')
@@ -640,24 +796,20 @@ function Page() {
     const doSanitize = () => {
       fetch(`${API_URL}/sanitize`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ text: prompt, client_name: clientName || undefined }),
       }).then((r) => r.json()).then((data: any) => setSanitized(data.sanitized || ''))
     }
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>AI Guard — Sovereignty Layer</h2>
+        <h1 style={styles.pageTitle}>AI Guard: Sovereignty Layer</h1>
         <p style={styles.hint}>
-          Prompts are sanitized (client names, IPs, credentials, PII stripped)
-          before reaching any external model. Sensitive data stays local.
-          Every query is immutably logged.
+          Prompts are sanitized (client names, IPs, credentials, PII stripped) before reaching any external model.
+          Sensitive data stays local. Every query is immutably logged.
         </p>
 
-        <div style={styles.card}>
+        <div style={styles.lightCard}>
           <h3 style={styles.h3}>Send to AI</h3>
           <textarea
             placeholder="e.g. 'Analyze this vulnerability report for client Acme Corp at 10.0.0.5 with API key sk-12345'"
@@ -667,34 +819,27 @@ function Page() {
             rows={4}
           />
           <div style={styles.formRow}>
-            <input
-              placeholder="Client name (will be redacted)"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              style={styles.input}
-            />
+            <input placeholder="Client name (will be redacted)" value={clientName} onChange={(e) => setClientName(e.target.value)} style={styles.input} />
             <label style={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={forceLocal}
-                onChange={(e) => setForceLocal(e.target.checked)}
-              />
+              <input type="checkbox" checked={forceLocal} onChange={(e) => setForceLocal(e.target.checked)} />
               Force local processing (no external model)
             </label>
           </div>
-          <button onClick={queryAI} style={styles.button}>Query AI</button>
-          <button onClick={doSanitize} style={styles.buttonSmall}>Preview Sanitization</button>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button onClick={queryAI} style={styles.button}>Query AI</button>
+            <button onClick={doSanitize} style={styles.buttonGhostLight}>Preview Sanitization</button>
+          </div>
         </div>
 
         {response && (
-          <div style={styles.card}>
+          <div style={styles.lightCard}>
             <h3 style={styles.h3}>AI Response</h3>
             <div style={styles.codeBlock}>{response}</div>
           </div>
         )}
 
         {sanitized && (
-          <div style={styles.card}>
+          <div style={styles.lightCard}>
             <h3 style={styles.h3}>Sanitized Prompt (what the model sees)</h3>
             <div style={styles.codeBlock}>{sanitized}</div>
           </div>
@@ -703,55 +848,65 @@ function Page() {
     )
   }
 
-  // ============================================================
-  // AUDIT LOG
-  // ============================================================
-  function AuditSection() {
+// ============================================================
+// AUDIT LOG
+// ============================================================
+function AuditSection({ ctx }: { ctx: any }) {
+  const { api, token, audit, setAudit } = ctx
+    const [selectedId, setSelectedId] = useState<any>(null)
+
     useEffect(() => {
       api('/audit').then((data: any) => setAudit(data))
     }, [token])
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Immutable Audit Log</h2>
+        <h1 style={styles.pageTitle}>Immutable Audit Log</h1>
         <p style={styles.hint}>
-          Every action, scan, AI query, and review is logged. This log is the
-          authoritative record for regulatory and client accountability.
+          Every action, scan, AI query, and review is logged. This log is the authoritative record for regulatory and client accountability.
         </p>
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>Action</th>
-              <th>User</th>
-              <th>Resource</th>
-              <th>Details</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {audit.map((a: any) => (
-              <tr key={a.id} style={styles.tableRow}>
-                <td style={{ fontWeight: '600' }}>{a.action}</td>
-                <td>{a.user_email || 'system'}</td>
-                <td>{a.resource_type || '—'} #{a.resource_id || '—'}</td>
-                <td style={{ fontSize: '0.85rem', color: '#6b7280' }}>{a.details || '—'}</td>
-                <td style={{ fontSize: '0.85rem' }}>{new Date(a.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SplitPanel
+          title="Audit Trail"
+          items={audit}
+          selectedId={selectedId}
+          onSelect={(a) => setSelectedId(a.id)}
+          emptyLabel="No audit entries yet."
+          renderRow={(a) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{a.action}</div>
+                <div style={styles.listRowSub}>{a.user_email || 'system'}</div>
+              </div>
+              <span style={styles.listRowSub}>{new Date(a.created_at).toLocaleDateString()}</span>
+            </>
+          )}
+          renderDetail={(a) => (
+            <>
+              <div style={styles.detailHeading}>{a.action}</div>
+              <div style={styles.detailSub}>
+                {a.user_email || 'system'} · {a.resource_type || '-'} #{a.resource_id || '-'} · {new Date(a.created_at).toLocaleString()}
+              </div>
+              <div style={styles.detailLabel}>Details</div>
+              <div style={styles.codeBlock}>{a.details || '-'}</div>
+            </>
+          )}
+        />
       </div>
     )
   }
-  // ============================================================
-  // ADMIN — users & API keys
-  // ============================================================
-  function AdminSection() {
+
+// ============================================================
+// ADMIN: users & API keys
+// ============================================================
+function AdminSection({ ctx }: { ctx: any }) {
+  const { api, token, notify } = ctx
     const [users, setUsers] = useState<any[]>([])
     const [apiKeys, setApiKeys] = useState<any[]>([])
     const [newKeyName, setNewKeyName] = useState('')
     const [mintedKey, setMintedKey] = useState<string | null>(null)
+    const [showCreate, setShowCreate] = useState(false)
+    const [selectedUserId, setSelectedUserId] = useState<any>(null)
 
     const loadUsers = () => api('/admin/users').then((data: any) => setUsers(Array.isArray(data) ? data : []))
     const loadKeys = () => api('/admin/api-keys').then((data: any) => setApiKeys(Array.isArray(data) ? data : []))
@@ -762,19 +917,13 @@ function Page() {
     }, [token])
 
     const changeRole = async (userId: number, role: string) => {
-      await api(`/admin/users/${userId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ role }),
-      })
+      await api(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) })
       loadUsers()
       notify('User role updated')
     }
 
     const toggleActive = async (u: any) => {
-      await api(`/admin/users/${u.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active: !u.is_active }),
-      })
+      await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !u.is_active }) })
       loadUsers()
       notify(u.is_active ? 'User deactivated' : 'User reactivated')
     }
@@ -782,14 +931,11 @@ function Page() {
     const createKey = async (e: any) => {
       e.preventDefault()
       if (!newKeyName.trim()) return
-      const created = await api('/admin/api-keys', {
-        method: 'POST',
-        body: JSON.stringify({ name: newKeyName }),
-      })
+      const created = await api('/admin/api-keys', { method: 'POST', body: JSON.stringify({ name: newKeyName }) })
       setMintedKey(created.api_key || null)
       setNewKeyName('')
       loadKeys()
-      notify('API key created — copy it now, it will not be shown again')
+      notify('API key created: copy it now, it will not be shown again')
     }
 
     const revokeKey = async (id: number) => {
@@ -800,257 +946,324 @@ function Page() {
 
     return (
       <div style={styles.section}>
-        <h2 style={styles.h2}>Admin</h2>
-        <p style={styles.hint}>
-          Manage platform users and programmatic API keys. Admin-only.
-        </p>
+        <h1 style={styles.pageTitle}>Admin</h1>
+        <p style={styles.hint}>Manage platform users and programmatic API keys. Admin-only.</p>
 
-        <div style={styles.card}>
-          <h3 style={styles.h3}>Users</h3>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u: any) => (
-                <tr key={u.id} style={styles.tableRow}>
-                  <td>{u.email}</td>
-                  <td>{u.full_name || '—'}</td>
-                  <td>
-                    <select
-                      value={u.role}
-                      onChange={(e) => changeRole(u.id, e.target.value)}
-                      style={styles.inputSmall}
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="analyst">Analyst</option>
-                      <option value="client">Client</option>
-                    </select>
-                  </td>
-                  <td style={{ color: u.is_active ? '#10b981' : '#dc2626' }}>
-                    {u.is_active ? 'Active' : 'Disabled'}
-                  </td>
-                  <td>
-                    <button onClick={() => toggleActive(u)} style={styles.buttonSmall}>
-                      {u.is_active ? 'Disable' : 'Enable'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SplitPanel
+          title="Users"
+          items={users}
+          selectedId={selectedUserId}
+          onSelect={(u) => setSelectedUserId(u.id)}
+          emptyLabel="No users yet."
+          renderRow={(u) => (
+            <>
+              <div style={styles.listRowMain}>
+                <div style={styles.listRowTitle}>{u.email}</div>
+                <div style={styles.listRowSub}>{u.full_name || '-'}</div>
+              </div>
+              <Badge tone={u.is_active ? 'success' : 'danger'}>{u.is_active ? 'Active' : 'Disabled'}</Badge>
+            </>
+          )}
+          renderDetail={(u) => (
+            <>
+              <div style={styles.detailHeading}>{u.email}</div>
+              <div style={styles.detailSub}>{u.full_name || '-'}</div>
+              <div style={styles.detailLabel}>Role</div>
+              <select
+                value={u.role}
+                onChange={(e) => changeRole(u.id, e.target.value)}
+                style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+              >
+                <option value="admin">Admin</option>
+                <option value="analyst">Analyst</option>
+                <option value="client">Client</option>
+              </select>
+              <button onClick={() => toggleActive(u)} style={{ ...styles.darkActionBtn, marginTop: '1rem' }}>
+                {u.is_active ? 'Disable' : 'Enable'}
+              </button>
+            </>
+          )}
+        />
 
-        <div style={{ ...styles.card, marginTop: '1rem' }}>
-          <h3 style={styles.h3}>API Keys</h3>
-          <p style={styles.hint}>
-            Keys authenticate programmatic access via the <code>X-API-Key</code> header,
-            scoped to the admin account that minted them.
+        <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
+          <div style={styles.panelHeader}>
+            <h3 style={styles.panelTitle}>API Keys</h3>
+            <button onClick={() => { setMintedKey(null); setShowCreate(true) }} style={styles.darkActionBtn}>+ Create Key</button>
+          </div>
+          <p style={{ ...styles.hint, padding: '0 1.25rem', color: 'rgba(255,255,255,0.5)' }}>
+            Keys authenticate programmatic access via the <code>X-API-Key</code> header, scoped to the admin account that minted them.
           </p>
 
-          <form onSubmit={createKey} style={{ ...styles.form, flexDirection: 'row', gap: '0.5rem' }}>
-            <input
-              placeholder="Key name (e.g. ci-pipeline)"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              style={styles.input}
-            />
-            <button type="submit" style={styles.button}>Create Key</button>
-          </form>
-
-          {mintedKey && (
-            <div style={{ ...styles.codeBlock, marginTop: '1rem' }}>
-              {mintedKey}
-              <div style={{ color: '#f59e0b', marginTop: '0.5rem', fontFamily: 'inherit' }}>
-                Copy this now — it will not be shown again.
-              </div>
-            </div>
+          {showCreate && (
+            <Modal title="Create API Key" onClose={() => setShowCreate(false)}>
+              {mintedKey ? (
+                <>
+                  <div style={styles.codeBlock}>
+                    {mintedKey}
+                    <div style={{ color: '#fcd34d', marginTop: '0.5rem', fontFamily: 'inherit' }}>Copy this now. It will not be shown again.</div>
+                  </div>
+                  <button onClick={() => setShowCreate(false)} style={{ ...styles.button, marginTop: '1rem' }}>Done</button>
+                </>
+              ) : (
+                <form onSubmit={createKey} style={styles.form}>
+                  <input placeholder="Key name (e.g. ci-pipeline)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} style={styles.input} autoFocus />
+                  <button type="submit" style={styles.button}>Create Key</button>
+                </form>
+              )}
+            </Modal>
           )}
 
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Prefix</th>
-                <th>Owner</th>
-                <th>Status</th>
-                <th>Last Used</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apiKeys.map((k: any) => (
-                <tr key={k.id} style={styles.tableRow}>
-                  <td>{k.name}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{k.key_prefix}…</td>
-                  <td>{k.owner_id}</td>
-                  <td style={{ color: k.is_active ? '#10b981' : '#6b7280' }}>
-                    {k.is_active ? 'Active' : 'Revoked'}
-                  </td>
-                  <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'}</td>
-                  <td>
-                    {k.is_active && (
-                      <button onClick={() => revokeKey(k.id)} style={styles.buttonSmall}>
-                        Revoke
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ padding: '0 1.25rem 1.25rem' }}>
+            {apiKeys.map((k: any) => (
+              <div key={k.id} style={styles.auditRow}>
+                <div>
+                  <strong style={{ color: '#f5f5f7' }}>{k.name}</strong>
+                  <span style={styles.listRowSub}> · {k.key_prefix}… · owner #{k.owner_id}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Badge tone={k.is_active ? 'success' : 'neutral'}>{k.is_active ? 'Active' : 'Revoked'}</Badge>
+                  {k.is_active && <button onClick={() => revokeKey(k.id)} style={styles.buttonSmall}>Revoke</button>}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
   }
-}
-
 export default Page
 
 // ============================================================
-// Shared Components
-// ============================================================
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div
-      style={{
-        ...styles.statCard,
-        borderTop: `4px solid ${color}`,
-      }}
-    >
-      <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.25rem' }}>
-        {label}
-      </div>
-      <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#111827' }}>{value}</div>
-    </div>
-  )
-}
-
-// ============================================================
-// Styles
+// Styles: light chrome + dark glass "focus panel" split list/detail
 // ============================================================
 const styles: any = {
-  page: {
+  shell: {
+    display: 'flex',
     minHeight: '100vh',
-    background: '#f3f4f6',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    background: '#f5f5f7',
+    color: '#111113',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  },
+  sidebar: {
+    background: '#111113',
+    color: '#f5f5f7',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  sidebarBrand: { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '1.5rem 1.25rem 1.25rem' },
+  navBrandLogo: { height: '24px', width: 'auto' },
+  navBrandDivider: { width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' },
+  sidebarBrandText: { fontWeight: '600', fontSize: '0.95rem', color: '#f5f5f7' },
+  sidebarNavScroll: { flex: 1, overflowY: 'auto', paddingBottom: '0.5rem' },
+  sidebarNav: { display: 'flex', flexDirection: 'column', gap: '0.15rem', padding: '0.5rem 0.5rem 0.75rem' },
+  sidebarGroupLabel: {
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.3)',
+    padding: '0.6rem 0.9rem 0.3rem',
+  },
+  sidebarLink: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    background: '#ffffff',
-    padding: '2rem',
+    gap: '0.75rem',
+    color: 'rgba(255,255,255,0.6)',
+    background: 'transparent',
+    border: 'none',
+    padding: '0.7rem 0.9rem',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    cursor: 'pointer',
+    fontSize: '0.88rem',
+    fontWeight: 500,
+    textAlign: 'left',
+  },
+  sidebarLinkActive: { background: ACCENT_SOFT, color: '#fff' },
+  sidebarIcon: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', flex: '0 0 auto', color: 'inherit' },
+  sidebarFooter: { padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)' },
+  sidebarUser: { display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' },
+  sidebarAvatar: {
+    width: '32px', height: '32px', borderRadius: '50%', background: ACCENT, color: '#fff',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700, flex: '0 0 auto',
+  },
+  sidebarUserEmail: { fontSize: '0.8rem', color: '#f5f5f7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  sidebarUserRole: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'capitalize' },
+  sidebarSignOut: {
+    width: '100%',
+    background: 'rgba(220,38,38,0.12)',
+    color: '#fca5a5',
+    border: 'none',
+    padding: '0.55rem 0.9rem',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+  },
+  main: { flex: 1, padding: '2rem', maxWidth: '1180px', margin: '0 auto', width: '100%', boxSizing: 'border-box' },
+  section: {},
+  pageTitle: { fontSize: '1.75rem', fontWeight: '600', margin: '0 0 1.25rem', color: '#111113', letterSpacing: '-0.01em' },
+  hint: { color: 'rgba(17,17,19,0.55)', fontSize: '0.9rem', marginBottom: '1rem' },
+
+  // Light stat tiles
+  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' },
+  statCard: {
+    background: 'rgba(255,255,255,0.8)',
+    border: '1px solid rgba(0,0,0,0.06)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    borderRadius: '18px',
+    padding: '1.25rem',
+  },
+  statLabel: { fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)', marginBottom: '0.4rem' },
+  statValue: { fontSize: '1.9rem', fontWeight: '700', color: '#111113' },
+  statHint: { fontSize: '0.78rem', color: 'rgba(17,17,19,0.45)', marginTop: '0.3rem' },
+
+  // Light card (AI Guard, misc)
+  lightCard: {
+    background: 'rgba(255,255,255,0.8)',
+    border: '1px solid rgba(0,0,0,0.06)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    borderRadius: '18px',
+    padding: '1.5rem',
     margin: '1rem 0',
   },
-  h1: { fontSize: '2.5rem', fontWeight: '800', margin: '0 0 0.5rem 0', color: '#111827' },
-  sub: { color: '#6b7280', margin: '0 0 1.5rem 0' },
-  form: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  h3: { fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.6rem', color: '#111113' },
+  detailLabel: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginTop: '1.1rem', marginBottom: '0.5rem' },
+
+  // Dark glass "focus panel": the split list/detail workspace
+  panelDark: {
+    background: '#16161a',
+    borderRadius: '24px',
+    border: '1px solid rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  panelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '1.25rem 1.25rem 0.5rem',
+  },
+  panelTitle: { margin: 0, fontSize: '1rem', fontWeight: 600, color: '#f5f5f7' },
+  panelBody: { display: 'flex', minHeight: '320px', maxHeight: '560px' },
+  listPane: {
+    flex: '0 0 40%',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    padding: '0.5rem',
+    overflowY: 'auto',
+  },
+  detailPane: { flex: '1 1 60%', padding: '1.5rem', overflowY: 'auto' },
+  listRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    padding: '0.85rem 0.9rem',
+    borderRadius: '14px',
+    cursor: 'pointer',
+    marginBottom: '2px',
+  },
+  listRowActive: { background: ACCENT_SOFT },
+  listRowMain: { minWidth: 0 },
+  listRowTitle: { fontSize: '0.9rem', fontWeight: 600, color: '#f5f5f7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  listRowSub: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' },
+  emptyState: { padding: '2rem 1rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.88rem' },
+
+  detailHeading: { fontSize: '1.25rem', fontWeight: 600, color: '#f5f5f7' },
+  detailSub: { fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+
+  subCardGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginTop: '1.25rem' },
+  subCard: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '0.85rem' },
+  subCardLabel: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', marginBottom: '0.3rem' },
+  subCardValue: { fontSize: '1.2rem', fontWeight: 700, color: '#f5f5f7' },
+
+  scopeRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem', color: '#e5e7eb' },
+
+  auditRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem' },
+
+  badge: { display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' },
+
+  darkActionBtn: {
+    background: '#fdfdfd',
+    color: '#050505',
+    border: 'none',
+    padding: '0.5rem 1.1rem',
+    borderRadius: '999px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+  },
+
+  // Forms (used inside Modal, which is dark-glass itself)
+  form: { display: 'flex', flexDirection: 'column', gap: '0.9rem' },
   input: {
-    padding: '0.6rem 0.9rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
+    padding: '0.7rem 0.9rem',
+    background: 'rgba(0,0,0,0.04)',
+    border: '1px solid rgba(0,0,0,0.1)',
+    borderRadius: '10px',
     fontSize: '0.95rem',
+    color: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
   },
   inputSmall: {
     padding: '0.4rem 0.6rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
+    background: 'rgba(0,0,0,0.04)',
+    border: '1px solid rgba(0,0,0,0.1)',
+    borderRadius: '8px',
     fontSize: '0.9rem',
   },
   button: {
-    background: '#111827',
+    background: ACCENT,
     color: '#fff',
     border: 'none',
-    padding: '0.7rem 1.5rem',
-    borderRadius: '6px',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '999px',
     fontWeight: '600',
-    cursor: 'pointer',
-    fontSize: '0.95rem',
-  },
-  buttonSmall: {
-    background: '#111827',
-    color: '#fff',
-    border: 'none',
-    padding: '0.35rem 0.8rem',
-    borderRadius: '4px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
-    marginRight: '0.4rem',
-  },
-  hint: { color: '#6b7280', fontSize: '0.9rem', marginBottom: '1rem' },
-  app: { display: 'flex', minHeight: '100vh' },
-  nav: {
-    background: '#111827',
-    color: '#fff',
-    padding: '1rem',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-  },
-  navBrand: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
-  navBrandLogo: { height: '30px', width: 'auto', display: 'block' },
-  navBrandDivider: { width: '1px', height: '16px', background: 'rgba(255,255,255,0.22)' },
-  navBrandAccent: { color: '#e5e7eb', fontWeight: '600', fontSize: '0.95rem' },
-  navLinks: { display: 'flex', gap: '0.5rem' },
-  navLink: {
-    color: '#e5e7eb',
-    background: 'transparent',
-    border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '0.9rem',
   },
-  navActive: { background: '#3b82f6', color: '#fff' },
-  main: { flex: 1, padding: '80px 2rem 2rem 2rem', maxWidth: '1200px', margin: '0 auto', width: '100%', boxSizing: 'border-box' },
-  section: {},
-  h2: { fontSize: '1.5rem', fontWeight: '700', marginBottom: '1rem', color: '#111827' },
-  h3: { fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem', color: '#111827' },
-  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' },
-  statCard: { background: '#fff', padding: '1rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
-  sectionGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  table: { width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' },
-  tableRow: { borderBottom: '1px solid #e5e7eb' },
-  tableCell: { padding: '0.75rem', textAlign: 'left' },
-  list: { listStyle: 'none', padding: 0, margin: 0 },
-  listItem: { padding: '0.5rem 0', borderBottom: '1px solid #f3f4f6' },
-  alert: { padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.9rem' },
-  codeBlock: {
-    background: '#1f2937',
-    color: '#10b981',
-    padding: '1rem',
-    borderRadius: '6px',
-    fontFamily: 'monospace',
+  buttonGhostLight: {
+    background: 'rgba(0,0,0,0.05)',
+    color: '#111113',
+    border: '1px solid rgba(0,0,0,0.1)',
+    padding: '0.6rem 1.2rem',
+    borderRadius: '999px',
+    fontWeight: '600',
+    cursor: 'pointer',
     fontSize: '0.85rem',
+  },
+  buttonSmall: {
+    background: ACCENT_SOFT,
+    color: '#d8b4fe',
+    border: `1px solid ${ACCENT_BORDER}`,
+    padding: '0.3rem 0.7rem',
+    borderRadius: '999px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '0.78rem',
+  },
+  alert: { padding: '0.75rem 1rem', borderRadius: '14px', marginBottom: '1rem', fontSize: '0.9rem' },
+  codeBlock: {
+    background: 'rgba(0,0,0,0.3)',
+    color: '#d8b4fe',
+    padding: '1rem',
+    borderRadius: '12px',
+    fontFamily: 'monospace',
+    fontSize: '0.8rem',
     overflowX: 'auto',
     whiteSpace: 'pre-wrap',
+    border: '1px solid rgba(255,255,255,0.08)',
   },
-  checkboxLabel: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#6b7280' },
+  checkboxLabel: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'rgba(17,17,19,0.6)' },
   textarea: {
-    padding: '0.6rem 0.9rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
+    padding: '0.7rem 0.9rem',
+    background: 'rgba(0,0,0,0.04)',
+    border: '1px solid rgba(0,0,0,0.1)',
+    borderRadius: '10px',
     fontSize: '0.95rem',
+    color: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
     fontFamily: 'inherit',
   },
-  formRow: { display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' },
+  formRow: { display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center', flexWrap: 'wrap' },
 }
