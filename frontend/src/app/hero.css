@@ -1,4 +1,4 @@
-/* ULTORN hero — reference-pixel design system (1280x800 reference render) */
+/* ULTORN hero: reference-pixel design system (1280x800 reference render) */
 
 :root {
   --u: min(calc(100vw / 1280), calc(100dvh / 760));
@@ -622,7 +622,7 @@ button:focus-visible {
 }
 
 /* ---------------------------------------------------------------- */
-/* Entrance sequence — runs once on first load, then detaches         */
+/* Entrance sequence: runs once on first load, then detaches          */
 /* ---------------------------------------------------------------- */
 html.hanim .ln {
   overflow: hidden;

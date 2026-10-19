@@ -6,14 +6,14 @@ import './hero.css'
 import { legalLinks, navLinks as NAV_LINKS } from '../content/site'
 import Arrow from '../components/Arrow'
 
-// Served from public/media — downloaded and re-compressed locally
+// Served from public/media. Downloaded and re-compressed locally
 // (37MB -> 2.2MB via ffmpeg) to avoid cross-origin latency and double-fetch lag.
 const BG_VIDEO_URL: string | null = '/media/globe.mp4'
 const BG_POSTER_URL: string | null = '/media/globe-poster.webp'
 
 const ARROW = <Arrow className="arw" />
 
-// Section 10A — arms synchronously, before paint, so there is no flash of
+// Section 10A: arms synchronously, before paint, so there is no flash of
 // unanimated content. Runs once, then fully detaches (removes its own classes).
 const ENTRANCE_SCRIPT = `
 (function () {
@@ -57,7 +57,7 @@ const ENTRANCE_SCRIPT = `
 })();
 `
 
-// Section 10B — mobile menu toggle, operating on the elements by id.
+// Section 10B: mobile menu toggle, operating on the elements by id.
 const BURGER_SCRIPT = `
 (function () {
   var burger = document.getElementById('burger');
@@ -89,7 +89,7 @@ const BURGER_SCRIPT = `
 })();
 `
 
-// Original canvas-rendered rotating dot-matrix globe — used in place of the
+// Original canvas-rendered rotating dot-matrix globe, used in place of the
 // spec's hosted video (that asset belongs to a different product). No image
 // or video dependency: every dot, arc, and the orbiting satellite are drawn
 // from geometry each frame. Renders a single static frame under
@@ -114,7 +114,7 @@ const GLOBE_SCRIPT = `
   resize();
   window.addEventListener('resize', resize);
 
-  // Starfield — fixed, generated once.
+  // Starfield: fixed, generated once.
   var stars = [];
   for (var i = 0; i < 180; i++) {
     stars.push({
@@ -170,7 +170,7 @@ const GLOBE_SCRIPT = `
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
 
-    // Sphere dots — rotate right-to-left (decreasing x over time), depth-shaded.
+    // Sphere dots: rotate right-to-left (decreasing x over time), depth-shaded.
     var cos = Math.cos(angle), sin = Math.sin(angle);
     for (var j = 0; j < pts.length; j++) {
       var p = pts[j];
@@ -219,7 +219,7 @@ const GLOBE_SCRIPT = `
 })();
 `
 
-// Section 10C — two-video crossfade loop. Bails cleanly if there's no video
+// Section 10C: two-video crossfade loop. Bails cleanly if there's no video
 // (BG_VIDEO_URL is null), since the elements won't exist in the DOM at all.
 const VIDEO_SCRIPT = `
 (function () {
