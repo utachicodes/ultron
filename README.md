@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">Ultorn</h1>
-<p align="center">Sovereign Cybersecurity Platform — a Utachi Industries Labs product</p>
+<p align="center">Sovereign Cybersecurity Platform, a Utachi Industries Labs product</p>
 
 <p align="center">
   <img alt="CI" src="https://github.com/utachicodes/ultron/actions/workflows/ci.yml/badge.svg" />
@@ -25,16 +25,16 @@ digital products, automation, and AI (Labs). Ultorn is a Labs project.
 MVP backend (FastAPI + SQLAlchemy + SQLite) + frontend (Next.js) implementing:
 
 - **Client onboarding** with scoped authorization agreements
-- **Scan scopes** — add targets (domains, IPs, URLs) per client
+- **Scan scopes**: add targets (domains, IPs, URLs) per client
 - **Vulnerability scanning** with full data extraction: HTTP headers, server banners,
   page titles, response bodies, Nmap service detection, Nuclei template matching
-- **No verification gate** — scans run on all non-excluded scopes immediately
-- **Findings + human review** — critical/high findings require named analyst attestation
-- **AI sovereignty layer** — prompt sanitization (client names, IPs, credentials, PII stripped),
+- **No verification gate**: scans run on all non-excluded scopes immediately
+- **Findings + human review**: critical/high findings require named analyst attestation
+- **AI sovereignty layer**: prompt sanitization (client names, IPs, credentials, PII stripped),
   model-abstraction (Anthropic/OpenAI swappable), local fallback, immutable AI query audit log
-- **Immutable audit log** — every action, scan, AI query, and review logged
-- **Admin panel** — manage user roles/access and issue/revoke API keys for programmatic access
-- **Marketing landing page** — dark full-viewport hero at `/`, with the operator console at `/console`
+- **Immutable audit log**: every action, scan, AI query, and review logged
+- **Admin panel**: manage user roles/access and issue/revoke API keys for programmatic access
+- **Marketing landing page**: dark full-viewport hero at `/`, with the operator console at `/console`
 
 ## Quick Start
 
@@ -66,8 +66,8 @@ npm run dev
 
 Frontend at `http://localhost:3000`. Set `NEXT_PUBLIC_API_URL=http://localhost:8000`.
 
-- `/` — marketing landing page (sign-in entry point)
-- `/console` — the operator app (dashboard, clients, scans, findings, AI guard, audit, admin)
+- `/`: marketing landing page (sign-in entry point)
+- `/console`: the operator app (dashboard, clients, scans, findings, AI guard, audit, admin)
 
 ### Docker
 
@@ -106,7 +106,7 @@ docker-compose up --build
 | GET | `/admin/users` | List users (admin) |
 | PATCH | `/admin/users/{id}` | Update a user's role / active status (admin) |
 | GET | `/admin/api-keys` | List API keys (admin) |
-| POST | `/admin/api-keys` | Mint an API key — raw key shown once (admin) |
+| POST | `/admin/api-keys` | Mint an API key, raw key shown once (admin) |
 | DELETE | `/admin/api-keys/{id}` | Revoke an API key (admin) |
 
 API keys authenticate like a user session: send `X-API-Key: <key>` instead of a `Bearer` JWT
@@ -159,8 +159,8 @@ README.md
 companies from scratch out of Dakar, Senegal, working remotely and globally across two
 divisions:
 
-- **Studio** — branding, identity, UI/UX, fashion
-- **Labs** — websites, SaaS, automation, and AI (Ultorn is a Labs product)
+- **Studio**: branding, identity, UI/UX, fashion
+- **Labs**: websites, SaaS, automation, and AI (Ultorn is a Labs product)
 
 Contact: [WhatsApp +221 78 108 05 06](https://wa.me/221781080506) · [@utachiindustries](https://instagram.com/utachiindustries)
 

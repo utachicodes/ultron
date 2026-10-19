@@ -1,7 +1,7 @@
-# Ultorn — Project Tracker
+# Ultorn: Project Tracker
 
 Living backlog for the Ultorn platform (Utachi Industries Labs). Update this file
-as items are picked up or completed — it's the source of truth for "what's left."
+as items are picked up or completed. It's the source of truth for "what's left."
 
 ## Done
 
@@ -20,6 +20,9 @@ as items are picked up or completed — it's the source of truth for "what's lef
 - [x] Centralized `NAV_LINKS`/arrow icon between `app/page.tsx`, `content/site.ts`,
       and `components/Arrow.tsx` (landing page no longer has its own copies)
 - [x] Basic CI workflow (backend import check + frontend build) on push/PR
+- [x] Redesigned the console (`/console`): dark sidebar nav, light content chrome, glass stat
+      tiles, dark split list/detail panels for clients/scans/findings/audit/admin, popups for
+      quick actions (add client, start scan, create API key)
 
 ## In progress / needs a pass
 
@@ -32,12 +35,14 @@ as items are picked up or completed — it's the source of truth for "what's lef
 - [ ] Pagination for `/scans`, `/scans/{id}/findings`, `/audit` (currently unbounded)
 - [ ] Postgres option for `DATABASE_URL` in production (SQLite is fine for MVP/single-node only)
 - [ ] Secrets: generate a random `SECRET_KEY` on first boot instead of the `.env.example` default
-- [ ] Replace the Celery/worker stub (`backend/app/worker.py`) with a real queue, or remove it —
-      right now scans run synchronously in the request and the worker does nothing
+- [ ] Replace the Celery/worker stub (`backend/app/worker.py`) with a real queue, or remove it.
+      Right now scans run synchronously in the request and the worker does nothing
 
 ### Tests
 - [ ] Backend: pytest suite for auth, scan scope CRUD, scan run, admin endpoints
 - [ ] Frontend: at least smoke tests for the console app's auth-gated views
+- [ ] Run the full test suite (backend + frontend) locally before every push, once it exists.
+      CI currently only checks that each side imports/builds, not behavior
 
 ### Product
 - [ ] Self-service client registration flow (today only `/auth/register` exists, no UI signup)
@@ -46,6 +51,6 @@ as items are picked up or completed — it's the source of truth for "what's lef
 - [ ] Mobile pass on the console app (currently desktop-oriented, unlike the marketing site)
 
 ### Content
-- [ ] Legal review of `/privacy-notice` and `/service-agreement` — both are explicitly marked
+- [ ] Legal review of `/privacy-notice` and `/service-agreement`. Both are explicitly marked
       as drafts describing current code behavior, not lawyer-reviewed policy
 - [ ] Sharpen subpage copy further if `/platform`, `/scanning`, `/sovereignty` still read flat
