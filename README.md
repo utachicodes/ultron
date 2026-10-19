@@ -17,7 +17,7 @@ A West African-owned cybersecurity and digital-trust infrastructure platform.
 Defensive-only. No verification gate for sandbox testing. Full data extraction.
 
 Built by [Utachi Industries](https://www.utachiindustries.space/), a Dakar, Senegal-based
-studio ("nous bâtissons des marques") spanning brand/product design (Studio) and
+studio spanning brand/product design (Studio) and
 digital products, automation, and AI (Labs). Ultorn is a Labs project.
 
 ## What this is
