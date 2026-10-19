@@ -96,6 +96,7 @@ def _delete_demo(db):
             db.query(models.Alert).filter(models.Alert.monitor_id == monitor.id).delete()
             db.delete(monitor)
         db.query(models.CodeScan).filter(models.CodeScan.client_id == client.id).delete()
+        db.query(models.ScanSchedule).filter(models.ScanSchedule.client_id == client.id).delete()
         db.query(models.ScanScope).filter(models.ScanScope.client_id == client.id).delete()
         db.delete(client)
     db.commit()
@@ -185,6 +186,14 @@ def seed(reset: bool = False) -> None:
                     ),
                 ]
             )
+
+            db.add(models.ScanSchedule(
+                client_id=bank.id,
+                scan_type="vulnerability",
+                interval_minutes=1440,
+                last_run=datetime.utcnow() - timedelta(hours=3),
+                next_run=datetime.utcnow() + timedelta(hours=21),
+            ))
 
             code = models.CodeScan(
                 client_id=bank.id,

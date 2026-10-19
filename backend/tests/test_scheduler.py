@@ -43,7 +43,7 @@ def test_bootstrap_schedules_active_monitors(client, sample_client):
     client.patch(f"/monitors/{paused['id']}", json={"is_active": False})
 
     scheduler.stop()
-    scheduled = scheduler.bootstrap()
+    scheduled = scheduler.bootstrap()["monitors"]
 
     assert active["id"] in scheduled
     assert paused["id"] not in scheduled

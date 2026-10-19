@@ -30,6 +30,8 @@ MVP backend (FastAPI + SQLAlchemy + SQLite) + frontend (Next.js) implementing:
   page titles, response bodies, Nmap service detection, Nuclei template matching
 - **Continuous monitoring**: access anomalies, configuration drift, leaked credentials, and
   policy violations, with scheduled checks, alert triage, and acknowledgement/resolution
+- **Recurring scans**: per-client vulnerability scan schedules (hourly to monthly) with
+  run-now, pause/resume, and next-run tracking
 - **AI code scanning**: detects hardcoded secrets, `eval`/`exec`, disabled TLS verification,
   and insecure defaults in AI-generated or human-written code
 - **Senegal Cyber Law 2026 compliance**: maps findings to law articles, CERT notification
@@ -117,6 +119,9 @@ docker-compose up --build
 | GET | `/scans/{id}/report` | Executive report (JSON) |
 | GET | `/scans/{id}/report/markdown` | Executive report (Markdown) |
 | POST | `/findings/{id}/review` | Human analyst review |
+| GET/POST | `/scan-schedules` | Recurring scan schedules |
+| PATCH/DELETE | `/scan-schedules/{id}` | Pause/resume or remove a schedule |
+| POST | `/scan-schedules/{id}/run` | Run a scheduled scan immediately |
 | GET/POST | `/monitors` | Continuous monitoring targets |
 | PATCH/DELETE | `/monitors/{id}` | Pause/resume or remove a monitor |
 | POST | `/monitors/{id}/check` | Run a monitor check now |

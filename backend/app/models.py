@@ -186,6 +186,21 @@ class Alert(Base):
     monitor = relationship("Monitor", back_populates="alerts")
 
 
+class ScanSchedule(Base):
+    __tablename__ = "scan_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    scan_type = Column(String(50), default="vulnerability", nullable=False)
+    interval_minutes = Column(Integer, default=1440, nullable=False)
+    is_active = Column(Boolean, default=True)
+    last_run = Column(DateTime(timezone=True))
+    next_run = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    client = relationship("Client")
+
+
 class CodeScan(Base):
     __tablename__ = "code_scans"
 

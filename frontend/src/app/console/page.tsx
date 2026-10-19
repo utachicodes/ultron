@@ -86,6 +86,11 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M16 13h-4M16 17h-4" />
     </svg>
   ),
+  schedules: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  ),
 }
 
 function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
@@ -339,6 +344,7 @@ function Page() {
       items: [
         { key: 'monitors', label: 'Monitors', icon: 'monitors' },
         { key: 'alerts', label: 'Alerts', icon: 'alerts' },
+        { key: 'schedules', label: 'Scan Schedules', icon: 'schedules' },
         { key: 'code-scans', label: 'Code Scans', icon: 'code' },
         { key: 'compliance', label: 'Compliance', icon: 'compliance' },
         { key: 'reports', label: 'Reports', icon: 'reports' },
@@ -449,6 +455,7 @@ function Page() {
           {view === 'admin' && user?.role === 'admin' && <AdminSection ctx={ctx} />}
           {view === 'monitors' && <MonitorsSection ctx={ctx} />}
           {view === 'alerts' && <AlertsSection ctx={ctx} />}
+          {view === 'schedules' && <SchedulesSection ctx={ctx} />}
           {view === 'code-scans' && <CodeScansSection ctx={ctx} />}
           {view === 'compliance' && <ComplianceSection ctx={ctx} />}
           {view === 'reports' && <ReportsSection ctx={ctx} />}
@@ -1339,6 +1346,150 @@ function AlertsSection({ ctx }: { ctx: any }) {
                     {a.status !== 'resolved' && (
                       <button onClick={() => setStatus(a, 'resolved')} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Resolve</button>
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+}
+
+// ============================================================
+// SCAN SCHEDULES
+// ============================================================
+function SchedulesSection({ ctx }: { ctx: any }) {
+  const { api, token, notify } = ctx
+    const [schedules, setSchedules] = useState<any[]>([])
+    const [clientsForSchedule, setClientsForSchedule] = useState<any[]>([])
+    const [newSchedule, setNewSchedule] = useState({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
+
+    const load = () =>
+      api('/scan-schedules').then((data: any) => setSchedules(Array.isArray(data) ? data : []))
+
+    useEffect(() => {
+      load()
+      api('/clients').then((data: any) => setClientsForSchedule(Array.isArray(data) ? data : []))
+    }, [token])
+
+    const createSchedule = async (e: any) => {
+      e.preventDefault()
+      await api('/scan-schedules', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: parseInt(newSchedule.client_id),
+          scan_type: newSchedule.scan_type,
+          interval_minutes: parseInt(newSchedule.interval_minutes),
+        }),
+      })
+      setNewSchedule({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
+      notify('Scan schedule created')
+      load()
+    }
+
+    const toggle = async (s: any) => {
+      await api(`/scan-schedules/${s.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !s.is_active }),
+      })
+      notify(s.is_active ? 'Schedule paused' : 'Schedule resumed')
+      load()
+    }
+
+    const runNow = async (s: any) => {
+      const res = await api(`/scan-schedules/${s.id}/run`, { method: 'POST' })
+      notify(`Scan #${res.scan_id} started and completed`)
+      load()
+    }
+
+    const remove = async (s: any) => {
+      if (!window.confirm('Delete this scan schedule?')) return
+      await api(`/scan-schedules/${s.id}`, { method: 'DELETE' })
+      notify('Schedule deleted')
+      load()
+    }
+
+    const humanInterval = (minutes: number) => {
+      if (minutes % 1440 === 0) return `${minutes / 1440} day(s)`
+      if (minutes % 60 === 0) return `${minutes / 60} hour(s)`
+      return `${minutes} min`
+    }
+
+    return (
+      <div style={styles.section}>
+        <h1 style={styles.pageTitle}>Recurring Scans</h1>
+        <p style={styles.hint}>
+          Schedule vulnerability assessments to run automatically. Each run uses the client's
+          current non-excluded scopes and files findings for human review.
+        </p>
+
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Create Schedule</h3>
+          <form onSubmit={createSchedule} style={styles.form}>
+            <select
+              value={newSchedule.client_id}
+              onChange={(e) => setNewSchedule({ ...newSchedule, client_id: e.target.value })}
+              style={styles.input}
+            >
+              <option value="">Select client</option>
+              {clientsForSchedule.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select
+              value={newSchedule.scan_type}
+              onChange={(e) => setNewSchedule({ ...newSchedule, scan_type: e.target.value })}
+              style={styles.input}
+            >
+              <option value="vulnerability">Vulnerability</option>
+              <option value="full">Full assessment</option>
+              <option value="web">Web application</option>
+            </select>
+            <select
+              value={newSchedule.interval_minutes}
+              onChange={(e) => setNewSchedule({ ...newSchedule, interval_minutes: e.target.value })}
+              style={styles.input}
+            >
+              <option value="60">Every hour</option>
+              <option value="360">Every 6 hours</option>
+              <option value="1440">Daily</option>
+              <option value="10080">Weekly</option>
+              <option value="43200">Monthly</option>
+            </select>
+            <button type="submit" style={styles.button}>Create Schedule</button>
+          </form>
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Schedules</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Every</th>
+                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Next run</th>
+                <th style={{ padding: '0.75rem 0' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No schedules yet.</td>
+                </tr>
+              )}
+              {schedules.map((s: any) => (
+                <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                  <td style={{ padding: '0.75rem 0' }}>{s.client?.name || s.client_id}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{s.scan_type}</td>
+                  <td style={{ padding: '0.75rem 0' }}>{humanInterval(s.interval_minutes)}</td>
+                  <td style={{ padding: '0.75rem 0', fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)' }}>
+                    {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
+                  </td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <Badge tone={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Paused'}</Badge>
+                    <button onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
+                    <button onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
+                    <button onClick={() => remove(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
                   </td>
                 </tr>
               ))}

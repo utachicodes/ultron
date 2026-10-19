@@ -167,6 +167,35 @@ class ScanOut(ScanBase):
         return _parse_json_field(value)
 
 
+# --- Scan Schedules ---
+class ScanScheduleBase(BaseModel):
+    client_id: int
+    scan_type: str = "vulnerability"
+    interval_minutes: int = 1440
+
+
+class ScanScheduleCreate(ScanScheduleBase):
+    pass
+
+
+class ScanScheduleUpdate(BaseModel):
+    scan_type: Optional[str] = None
+    interval_minutes: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class ScanScheduleOut(ScanScheduleBase):
+    id: int
+    is_active: bool
+    client: Optional[ScanClientOut] = None
+    last_run: Optional[datetime] = None
+    next_run: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class AuditLogOut(BaseModel):
     id: int
     user_id: Optional[int]

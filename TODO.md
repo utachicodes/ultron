@@ -32,6 +32,8 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Report generation (`reports.py`): plain-language executive reports, recommendations,
       compliance mappings, Markdown export
 - [x] Recurring monitor scheduler (`scheduler.py`) wired to `worker.process_monitor_check`
+- [x] Recurring vulnerability scan schedules (`ScanSchedule`): hourly→monthly, run-now,
+      pause/resume, next-run tracking, sharing `worker.execute_scan` with the API
 - [x] Console sections for Monitors, Alerts, Code Scans, Compliance, and Reports
 - [x] Fixed monitor-check 500 (`monitor.id` → `monitor_obj.id`) and populated
       `body_preview` so leaked-credential detection actually runs
