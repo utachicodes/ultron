@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 import uuid
@@ -982,8 +984,45 @@ def compliance_summary(
 
 
 # ============================================================
-# Health
+# Root, Health, and friendly 404s
 # ============================================================
+@app.get("/")
+def root():
+    """Landing payload so hitting the API root is never a bare 404."""
+    return {
+        "app": settings.app_name,
+        "status": "ok",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+        "health": "/health",
+        "message": "Ultorn API. Interactive docs live at /docs.",
+    }
+
+
+@app.exception_handler(StarletteHTTPException)
+async def not_found_hint(request: Request, exc: StarletteHTTPException):
+    """Keep FastAPI's error shape but add a pointer for unrouted paths."""
+    if exc.status_code == 404 and exc.detail == "Not Found":
+        path = request.url.path
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": "Not Found",
+                "path": path,
+                "hint": (
+                    "No route matches this path. See /docs for the API index. "
+                    "Ultorn does not expose OpenAI-compatible /v1/* endpoints."
+                ),
+                "docs": "/docs",
+            },
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None),
+    )
+
+
 @app.get("/health")
 def health():
     """Liveness/readiness probe. Does not require auth."""

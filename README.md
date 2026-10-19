@@ -109,6 +109,8 @@ docker-compose up --build
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/` | API index (app, docs, health links) |
+| GET | `/health` | Readiness: database + scheduler state |
 | POST | `/auth/token` | Login (JWT) |
 | GET | `/auth/me` | Current authenticated user |
 | POST | `/auth/register` | Register user |

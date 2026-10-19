@@ -4,6 +4,30 @@ from __future__ import annotations
 def test_health(anon):
     res = anon.get("/health")
     assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "ok"
+    assert body["database"] == "ok"
+
+
+def test_root_is_never_a_bare_404(anon):
+    res = anon.get("/")
+    assert res.status_code == 200
+    assert res.json()["docs"] == "/docs"
+
+
+def test_unrouted_path_gets_a_hint(anon):
+    res = anon.get("/v1/models")
+    assert res.status_code == 404
+    body = res.json()
+    assert body["detail"] == "Not Found"
+    assert body["path"] == "/v1/models"
+    assert "docs" in body
+
+
+def test_domain_404_detail_is_preserved(client):
+    res = client.get("/clients/99999")
+    assert res.status_code == 404
+    assert res.json() == {"detail": "Client not found"}
 
 
 def test_register_defaults_to_client_role(anon, db):
