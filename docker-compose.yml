@@ -1,33 +1,28 @@
-version: "3.8"
-
 services:
   api:
     build: ./backend
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./ultorn.db
-      - SECRET_KEY=change-me-in-production
-      - AI_PROVIDER=anthropic
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=sqlite:////data/ultorn.db
+      # Leave SECRET_KEY unset to auto-generate and persist one at /data/.secret_key.
+      # For multi-node deployments set it explicitly from your secret manager.
+      - SECRET_KEY=${SECRET_KEY:-}
+      - AI_PROVIDER=${AI_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - SCANNER_TIMEOUT=300
+      # Exactly one process should own the scheduler.
+      - ENABLE_SCHEDULER=true
     volumes:
-      - ./backend:/app
-      - ultorn_data:/app/data
-    depends_on:
-      - worker
-
-  worker:
-    build: ./backend
-    command: python -m app.worker
-    environment:
-      - DATABASE_URL=sqlite:///./ultorn.db
-      - SECRET_KEY=change-me-in-production
-      - SCANNER_TIMEOUT=300
-    volumes:
-      - ./backend:/app
-      - ultorn_data:/app/data
+      - ultorn_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
@@ -36,7 +31,9 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   ultorn_data:

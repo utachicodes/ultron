@@ -65,6 +65,14 @@ The API will be at `http://localhost:8000`. Interactive docs at `http://localhos
 
 Default admin: `admin@ultorn.local` / `admin123`
 
+Optional demo data (two clients, findings, monitors, alerts, a code scan):
+
+```bash
+cd backend
+python seed_demo.py          # add demo data
+python seed_demo.py --reset  # rebuild it
+```
+
 ### Frontend
 
 ```bash

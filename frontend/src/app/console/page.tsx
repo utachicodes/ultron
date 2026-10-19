@@ -473,7 +473,9 @@ function severityTone(s: string) {
 function Dashboard({ ctx }: { ctx: any }) {
   const { api, token, clients, setClients, scans, setScans, audit, setAudit } = ctx
     const [stats, setStats] = useState<any>({})
-    const [selectedId, setSelectedId] = useState<any>(null)
+    const [alerts, setAlerts] = useState<any[]>([])
+    const [monitors, setMonitors] = useState<any[]>([])
+    const [codeIssues, setCodeIssues] = useState(0)
 
     useEffect(() => {
       api('/scans').then((data: any) => {
@@ -483,46 +485,67 @@ function Dashboard({ ctx }: { ctx: any }) {
         setStats({ totalScans: data.length, critical, high })
       })
       api('/clients').then((data: any) => setClients(data))
-      api('/audit').then((data: any) => setAudit(data.slice(0, 8)))
+      api('/audit?limit=8').then((data: any) => setAudit(data))
+      api('/alerts').then((data: any) => setAlerts(Array.isArray(data) ? data : []))
+      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+      api('/code-scans').then((data: any) => {
+        const issues = (Array.isArray(data) ? data : []).reduce((acc: number, s: any) => acc + (s.issues_found || 0), 0)
+        setCodeIssues(issues)
+      })
     }, [token])
+
+    const openAlerts = alerts.filter((a: any) => a.status === 'open')
+    const activeMonitors = monitors.filter((m: any) => m.is_active)
 
     return (
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Dashboard</h1>
+        <p style={styles.hint}>
+          Live posture across scanning, continuous monitoring, and AI code review.
+        </p>
         <div style={styles.statGrid}>
           <StatCard label="Total Scans" value={stats.totalScans || 0} />
           <StatCard label="Critical Findings" value={stats.critical || 0} hint={(stats.critical || 0) > 0 ? 'Needs review' : 'Clear'} />
+          <StatCard label="Open Alerts" value={openAlerts.length} hint={openAlerts.length > 0 ? 'Needs triage' : 'All clear'} />
+          <StatCard label="Active Monitors" value={activeMonitors.length} hint={`${monitors.length} total`} />
           <StatCard label="High Findings" value={stats.high || 0} />
+          <StatCard label="Code Issues" value={codeIssues} hint="Across code scans" />
           <StatCard label="Clients" value={clients.length} />
         </div>
 
-        <SplitPanel
-          title="Recent Scans"
-          items={scans.slice(0, 10)}
-          selectedId={selectedId}
-          onSelect={(s) => setSelectedId(s.id)}
-          emptyLabel="No scans yet."
-          renderRow={(s) => (
-            <>
-              <div style={styles.listRowMain}>
-                <div style={styles.listRowTitle}>{s.client?.name || '-'}</div>
-                <div style={styles.listRowSub}>{s.scan_type}</div>
-              </div>
-              <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge>
-            </>
-          )}
-          renderDetail={(s) => (
-            <>
-              <div style={styles.detailHeading}>{s.client?.name || '-'}</div>
-              <div style={styles.detailSub}>{s.scan_type} · <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge></div>
-              <div style={styles.subCardGrid}>
-                <div style={styles.subCard}><div style={styles.subCardLabel}>Findings</div><div style={styles.subCardValue}>{s.summary?.total_findings || 0}</div></div>
-                <div style={styles.subCard}><div style={styles.subCardLabel}>Critical</div><div style={styles.subCardValue}>{s.summary?.critical || 0}</div></div>
-                <div style={styles.subCard}><div style={styles.subCardLabel}>High</div><div style={styles.subCardValue}>{s.summary?.high || 0}</div></div>
-              </div>
-            </>
-          )}
-        />
+        <div style={styles.split}>
+          <div style={styles.panelDark}>
+            <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Recent Scans</h3></div>
+            <div style={{ padding: '0 1.25rem 1.25rem' }}>
+              {scans.slice(0, 6).map((s: any) => (
+                <div key={s.id} style={styles.auditRow}>
+                  <div>
+                    <strong style={{ color: '#f5f5f7' }}>{s.client?.name || '-'}</strong>
+                    <span style={styles.listRowSub}> · {s.scan_type}</span>
+                  </div>
+                  <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge>
+                </div>
+              ))}
+              {scans.length === 0 && <div style={styles.listRowSub}>No scans yet.</div>}
+            </div>
+          </div>
+
+          <div style={styles.panelDark}>
+            <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Open Alerts</h3></div>
+            <div style={{ padding: '0 1.25rem 1.25rem' }}>
+              {openAlerts.slice(0, 6).map((a: any) => (
+                <div key={a.id} style={styles.auditRow}>
+                  <div>
+                    <strong style={{ color: '#f5f5f7' }}>{a.title}</strong>
+                    <span style={styles.listRowSub}> · {a.status}</span>
+                  </div>
+                  <Badge tone={severityTone(a.severity)}>{a.severity}</Badge>
+                </div>
+              ))}
+              {openAlerts.length === 0 && <div style={styles.listRowSub}>No open alerts.</div>}
+            </div>
+          </div>
+        </div>
 
         <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
           <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Recent Audit Activity</h3></div>
@@ -1708,6 +1731,9 @@ const styles: any = {
   statLabel: { fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)', marginBottom: '0.4rem' },
   statValue: { fontSize: '1.9rem', fontWeight: '700', color: '#111113' },
   statHint: { fontSize: '0.78rem', color: 'rgba(17,17,19,0.45)', marginTop: '0.3rem' },
+
+  // Two-up dark panels on the dashboard
+  split: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' },
 
   // Light card (AI Guard, misc)
   lightCard: {

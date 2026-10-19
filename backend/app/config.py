@@ -16,15 +16,30 @@ DEV_SECRET = "dev-secret-change-me"
 _BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _secret_file() -> Path:
+    """Store the generated key beside the SQLite database when possible so it
+    survives container re-creation; otherwise fall back to the app directory."""
+    import os
+
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url.startswith("sqlite:///"):
+        db_path = Path(db_url[len("sqlite:///"):])
+        try:
+            return db_path.resolve().parent / ".secret_key"
+        except OSError:
+            pass
+    return _BASE_DIR / ".secret_key"
+
+
 def _resolve_secret() -> str:
-    """Load SECRET_KEY from env if set, else a generated key stored in .secret_key."""
+    """Load SECRET_KEY from env if set, else a generated key stored on disk."""
     import os
 
     env_secret = os.getenv("SECRET_KEY")
     if env_secret and env_secret != DEV_SECRET:
         return env_secret
 
-    key_file = _BASE_DIR / ".secret_key"
+    key_file = _secret_file()
     if key_file.exists():
         existing = key_file.read_text().strip()
         if existing:
@@ -32,6 +47,7 @@ def _resolve_secret() -> str:
 
     generated = secrets.token_urlsafe(48)
     try:
+        key_file.parent.mkdir(parents=True, exist_ok=True)
         key_file.write_text(generated)
         key_file.chmod(0o600)
     except OSError:
