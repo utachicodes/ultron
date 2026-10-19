@@ -1314,7 +1314,8 @@ function AlertsSection({ ctx }: { ctx: any }) {
         </div>
 
         <div style={styles.lightCard}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={styles.tableWrap}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</th>
@@ -1351,6 +1352,7 @@ function AlertsSection({ ctx }: { ctx: any }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     )
@@ -1461,7 +1463,8 @@ function SchedulesSection({ ctx }: { ctx: any }) {
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Schedules</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={styles.tableWrap}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</th>
@@ -1495,6 +1498,7 @@ function SchedulesSection({ ctx }: { ctx: any }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     )
@@ -1569,7 +1573,8 @@ function CodeScansSection({ ctx }: { ctx: any }) {
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Code Scans</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={styles.tableWrap}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
                 <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Repository</th>
@@ -1589,6 +1594,7 @@ function CodeScansSection({ ctx }: { ctx: any }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {selectedId && (
@@ -1885,6 +1891,7 @@ const styles: any = {
 
   // Two-up dark panels on the dashboard
   split: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' },
+  tableWrap: { overflowX: 'auto' as const, WebkitOverflowScrolling: 'touch' as const, maxWidth: '100%' },
 
   // Light card (AI Guard, misc)
   lightCard: {
