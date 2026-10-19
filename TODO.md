@@ -40,8 +40,10 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Console sections for Monitors, Alerts, Code Scans, Compliance, and Reports
 - [x] Fixed monitor-check 500 (`monitor.id` → `monitor_obj.id`) and populated
       `body_preview` so leaked-credential detection actually runs
-- [x] `design.html`: static design reference for the console rework — 12 views, grouped
-      keyboard-accessible navigation, inline SVG icons, mobile drawer, deep links, focus states
+- [x] `design.html`: static design reference for the console rework — full-screen initial
+      landing page (“Know before they do.”) with a CSS globe, responsive nav/menu, console
+      deep links, and a back-to-landing shortcut; 12 console views, grouped keyboard-accessible
+      navigation, inline SVG icons, mobile drawer, focus states, and no horizontal page overflow
 - [x] Console UX pass: shared accessible primitives (`ui.tsx`), labeled forms, error/loading/empty
       states, toasts, confirm dialogs for destructive actions, visible focus rings, contrast fixes
 - [x] Backend structure: `main.py` split into 12 domain routers under `app/routers/`
