@@ -15,8 +15,8 @@
     --bg-dark: #0a0a0f;
     --bg-surface: #111118;
     --bg-card: #161620;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
+    --accent: #7c3aed;
+    --accent-hover: #6d28d9;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
     --border: #272735;
@@ -53,6 +53,19 @@
   .w-full { width: 100%; }
   .block { display: block; }
   .hidden { display: none !important; }
+
+  /* Visible only to screen readers */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   .text-sm { font-size: 0.875rem; }
   .text-xs { font-size: 0.75rem; }
@@ -108,7 +121,7 @@
   .logo-mark {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--accent), #1e40af);
+    background: linear-gradient(135deg, var(--accent), #4c1d95);
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -116,7 +129,7 @@
     font-weight: 900;
     font-size: 1.25rem;
     color: #fff;
-    box-shadow: 0 0 20px rgba(59,130,246,0.4);
+    box-shadow: 0 0 20px rgba(124,58,237,0.4);
   }
   .logo-text {
     font-size: 1.25rem;
@@ -217,6 +230,33 @@
     border-radius: 0.75rem;
     padding: 1.5rem;
   }
+  a.btn { text-decoration: none; }
+  a.btn:hover { text-decoration: none; }
+  details.card { padding: 1.25rem 1.5rem; }
+  details.card > summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 600;
+    font-size: 1.05rem;
+    min-height: 36px;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::after {
+    content: '+';
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  details.card[open] > summary::after { content: '−'; }
+  .summary-hint {
+    margin-left: auto;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
   .stat-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -268,7 +308,7 @@
   }
   .badge-critical { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
   .badge-high { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.3); }
-  .badge-medium { background: rgba(59,130,246,0.15); color: var(--accent); border: 1px solid rgba(59,130,246,0.3); }
+  .badge-medium { background: rgba(124,58,237,0.15); color: var(--accent); border: 1px solid rgba(124,58,237,0.3); }
   .badge-low { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
   .badge-info { background: var(--glass); color: var(--text-muted); border: 1px solid var(--glass-border); }
 
@@ -305,7 +345,7 @@
   .form-input:focus {
     outline: none;
     border-color: var(--accent);
-    ring-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.25);
   }
   .form-select { appearance: none; }
 
@@ -319,7 +359,7 @@
     margin-bottom: 1rem;
     border: 1px solid transparent;
   }
-  .alert-info { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #bfdbfe; }
+  .alert-info { background: rgba(124,58,237,0.1); border-color: rgba(124,58,237,0.3); color: #ddd6fe; }
   .alert-success { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #bbf7d0; }
   .alert-danger { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fecaca; }
 
@@ -384,7 +424,7 @@
     position: absolute;
     top: -50%; left: -50%;
     width: 200%; height: 200%;
-    background: radial-gradient(circle at center, rgba(59,130,246,0.08) 0%, transparent 60%);
+    background: radial-gradient(circle at center, rgba(124,58,237,0.08) 0%, transparent 60%);
     pointer-events: none;
   }
   .hero-content {
@@ -431,23 +471,78 @@
     height: calc(100vh - 64px);
     overflow-y: auto;
   }
-  .sidebar-brand { margin-bottom: 2rem; }
-  .sidebar-nav { display: flex; flex-direction: column; gap: 0.25rem; }
+  .sidebar-brand { margin-bottom: 1rem; }
+  .sidebar-nav { display: flex; flex-direction: column; gap: 0.15rem; }
+  .sidebar-group-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 1rem 0.75rem 0.35rem;
+  }
   .sidebar-item {
     color: var(--text-muted);
     font-size: 0.875rem;
     font-weight: 500;
-    padding: 0.625rem 0.75rem;
+    padding: 0.6rem 0.75rem;
     border-radius: 0.5rem;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    width: 100%;
+    min-height: 42px;
+    text-align: left;
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    transition: all 0.2s;
+    transition: background-color 0.2s, color 0.2s;
+    cursor: pointer;
   }
   .sidebar-item:hover { background: var(--glass); color: var(--text-main); }
-  .sidebar-item.active { background: var(--glass); color: var(--accent); border-left: 3px solid var(--accent); }
-  .sidebar-item { cursor: pointer; }
+  .sidebar-item[aria-current="page"] {
+    background: var(--glass);
+    color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
   .main-content { padding: 2rem; overflow-y: auto; }
+
+  /* Icon system (inline SVG sprite) */
+  .icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Skip link: first stop for keyboard users */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 200;
+    background: #ffffff;
+    color: #0a0a0f;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.7rem 1.1rem;
+    border-radius: 0 0 0.6rem 0;
+  }
+  .skip-link:focus { left: 0; }
+
+  /* Visible focus everywhere (WCAG 2.4.7) */
+  :focus-visible {
+    outline: 2px solid #c4b5fd;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .topbar { display: none; }
+  .sidebar-backdrop { display: none; }
 
   /* Console views */
   .view { display: none; }
@@ -469,16 +564,103 @@
   /* =========================================
      RESPONSIVE
      ========================================= */
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+    .grid-cols-3, .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+
   @media (max-width: 768px) {
-    .dashboard { grid-template-columns: 1fr; }
-    .sidebar { display: none; }
     .hero-title { font-size: 2.25rem; }
-    .grid-cols-2, .grid-cols-3, .grid-cols-4 { grid-template-columns: 1fr; }
     .nav-links { display: none; }
+    .grid-cols-2, .grid-cols-3, .grid-cols-4 { grid-template-columns: 1fr; }
+
+    /* Console becomes a single column with an off-canvas drawer, so every
+       section stays reachable on a phone. */
+    .dashboard { grid-template-columns: 1fr; }
+    .main-content { padding: 1.25rem 1rem 2rem; overflow: visible; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 70;
+      padding: 0.7rem 1rem;
+      background: rgba(10, 10, 15, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-title { font-weight: 600; font-size: 0.95rem; }
+    .topbar-burger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: var(--glass);
+      color: var(--text-main);
+      cursor: pointer;
+    }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100dvh;
+      width: 280px;
+      padding-bottom: 2rem;
+      transform: translateX(-100%);
+      transition: transform 0.22s ease;
+      z-index: 80;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-backdrop.open {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 75;
+    }
+    .table-wrap table { min-width: 640px; }
+    .btn { min-height: 40px; }
+    .stat-value { font-size: 1.75rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 </style>
 </head>
 <body>
+
+<!-- Inline SVG icon sprite: one definition, reused by the whole console.
+     Icons inherit currentColor so they theme automatically. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-clients" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></symbol>
+    <symbol id="i-scans" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-findings" viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-reports" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-monitors" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-alerts" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+    <symbol id="i-schedules" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></symbol>
+    <symbol id="i-compliance" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></symbol>
+    <symbol id="i-audit" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip-link" href="#console-main">Skip to console content</a>
 
 <!-- =========================================
      LANDING PAGE (Marketing)
@@ -494,8 +676,8 @@
       <h1 class="hero-title">We use the same AI <span class="gradient">the world uses.</span><br>What we don't do is hand <span class="gradient">you over to it.</span></h1>
       <p class="hero-subtitle">West African-owned cybersecurity and digital-trust infrastructure. Defensive-only. Authorization-gated. Sovereign-by-architecture. Built for Senegal's 2026 Cybersecurity Law and the region's actual threat landscape.</p>
       <div class="hero-actions">
-        <button class="btn btn-primary">Get Started</button>
-        <button class="btn btn-secondary">View Platform</button>
+        <a class="btn btn-primary" href="#console-main" data-goto="dashboard">Open the console</a>
+        <a class="btn btn-secondary" href="/console">Sign in to the console</a>
       </div>
       <div class="hero-stats">
         <div class="hero-stat"><span class="hero-stat-value">40+</span> API Endpoints</div>
@@ -511,7 +693,8 @@
      DASHBOARD (Console)
      ========================================= -->
 <div class="dashboard">
-  <aside class="sidebar">
+  <div class="sidebar-backdrop" data-close-drawer></div>
+  <aside class="sidebar" id="console-sidebar" aria-label="Console navigation">
     <div class="sidebar-brand">
       <div class="brand">
         <div class="logo-mark">U</div>
@@ -521,23 +704,39 @@
         </div>
       </div>
     </div>
-    <nav class="sidebar-nav">
-      <div class="sidebar-item active" data-view="dashboard"><span>🛡️</span> Dashboard</div>
-      <div class="sidebar-item" data-view="clients"><span>🏢</span> Clients</div>
-      <div class="sidebar-item" data-view="scans"><span>🔍</span> Scans</div>
-      <div class="sidebar-item" data-view="findings"><span>⚠️</span> Findings</div>
-      <div class="sidebar-item" data-view="reports"><span>📄</span> Reports</div>
-      <div class="sidebar-item" data-view="monitors"><span>📊</span> Monitors</div>
-      <div class="sidebar-item" data-view="alerts"><span>🚨</span> Alerts</div>
-      <div class="sidebar-item" data-view="schedules"><span>🗓️</span> Scan Schedules</div>
-      <div class="sidebar-item" data-view="code-scans"><span>💻</span> Code Scans</div>
-      <div class="sidebar-item" data-view="ai"><span>🤖</span> AI Guard</div>
-      <div class="sidebar-item" data-view="compliance"><span>📋</span> Compliance</div>
-      <div class="sidebar-item" data-view="audit"><span>📜</span> Audit Log</div>
+    <nav class="sidebar-nav" aria-label="Console sections">
+      <div class="sidebar-group-label">Overview</div>
+      <button class="sidebar-item" type="button" data-view="dashboard"><svg class="icon" aria-hidden="true"><use href="#i-dashboard"/></svg> Dashboard</button>
+
+      <div class="sidebar-group-label">Operations</div>
+      <button class="sidebar-item" type="button" data-view="clients"><svg class="icon" aria-hidden="true"><use href="#i-clients"/></svg> Clients</button>
+      <button class="sidebar-item" type="button" data-view="scans"><svg class="icon" aria-hidden="true"><use href="#i-scans"/></svg> Scans</button>
+      <button class="sidebar-item" type="button" data-view="findings"><svg class="icon" aria-hidden="true"><use href="#i-findings"/></svg> Findings</button>
+
+      <div class="sidebar-group-label">Monitoring</div>
+      <button class="sidebar-item" type="button" data-view="monitors"><svg class="icon" aria-hidden="true"><use href="#i-monitors"/></svg> Monitors</button>
+      <button class="sidebar-item" type="button" data-view="alerts"><svg class="icon" aria-hidden="true"><use href="#i-alerts"/></svg> Alerts</button>
+      <button class="sidebar-item" type="button" data-view="schedules"><svg class="icon" aria-hidden="true"><use href="#i-schedules"/></svg> Scan Schedules</button>
+
+      <div class="sidebar-group-label">Analysis</div>
+      <button class="sidebar-item" type="button" data-view="code-scans"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg> Code Scans</button>
+      <button class="sidebar-item" type="button" data-view="reports"><svg class="icon" aria-hidden="true"><use href="#i-reports"/></svg> Reports</button>
+      <button class="sidebar-item" type="button" data-view="compliance"><svg class="icon" aria-hidden="true"><use href="#i-compliance"/></svg> Compliance</button>
+      <button class="sidebar-item" type="button" data-view="ai"><svg class="icon" aria-hidden="true"><use href="#i-ai"/></svg> AI Guard</button>
+
+      <div class="sidebar-group-label">Governance</div>
+      <button class="sidebar-item" type="button" data-view="audit"><svg class="icon" aria-hidden="true"><use href="#i-audit"/></svg> Audit Log</button>
     </nav>
   </aside>
 
-  <main class="main-content">
+  <main class="main-content" id="console-main" tabindex="-1">
+    <div class="topbar">
+      <button class="topbar-burger" type="button" aria-label="Open navigation" aria-controls="console-sidebar" aria-expanded="false">
+        <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
+      </button>
+      <span class="topbar-title" id="topbar-title">Dashboard</span>
+    </div>
+    <p class="sr-only" role="status" aria-live="polite" id="view-announcer"></p>
     <!-- ============ DASHBOARD ============ -->
     <div class="view active" id="view-dashboard">
       <h1 class="page-title">Dashboard</h1>
@@ -571,13 +770,13 @@
           <table>
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Findings</th>
-                <th>Critical</th>
-                <th>High</th>
-                <th>Action</th>
+                <th scope="col">Client</th>
+                <th scope="col">Type</th>
+                <th scope="col">Status</th>
+                <th scope="col">Findings</th>
+                <th scope="col">Critical</th>
+                <th scope="col">High</th>
+                <th scope="col">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -624,8 +823,11 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2 class="section-title mb-2">Non-Negotiable Design Boundaries</h2>
+      <details class="card">
+        <summary>
+          <span>Non-negotiable design boundaries</span>
+          <span class="summary-hint">5 enforced guarantees</span>
+        </summary>
         <div class="grid grid-cols-2 mt-2">
           <div class="p-2 rounded bg-surface border">
             <div class="text-danger font-bold mb-1">1. No Verification Gate (Sandbox)</div>
@@ -648,7 +850,7 @@
             <div class="text-sm text-muted">Every action, scan, query, and review immutably logged.</div>
           </div>
         </div>
-      </div>
+      </details>
     </div>
 
     <!-- ============ CLIENTS ============ -->
@@ -689,7 +891,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Client</th><th>Type</th><th>Status</th><th>Started</th><th>Findings</th><th>Action</th></tr></thead>
+            <thead><tr><th scope="col">Client</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Started</th><th scope="col">Findings</th><th scope="col">Action</th></tr></thead>
             <tbody>
               <tr><td>Sahel Bank</td><td>Vulnerability</td><td><span class="badge badge-low">Completed</span></td><td class="text-muted">Today 08:12</td><td>5</td><td><button class="btn btn-sm btn-secondary">Report</button></td></tr>
               <tr><td>Sonatel Mobile</td><td>Vulnerability</td><td><span class="badge badge-low">Completed</span></td><td class="text-muted">Yesterday 17:40</td><td>4</td><td><button class="btn btn-sm btn-secondary">Report</button></td></tr>
@@ -706,7 +908,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Finding</th><th>Target</th><th>Severity</th><th>Status</th><th>Review</th></tr></thead>
+            <thead><tr><th scope="col">Finding</th><th scope="col">Target</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead>
             <tbody>
               <tr><td>Exposed .git directory</td><td class="text-muted">bank.sn</td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td><button class="btn btn-sm btn-primary">Attest</button></td></tr>
               <tr><td>API key committed to public repository</td><td class="text-muted">api.sonatel.sn</td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td><button class="btn btn-sm btn-primary">Attest</button></td></tr>
@@ -767,7 +969,7 @@
     <!-- ============ ALERTS ============ -->
     <div class="view" id="view-alerts">
       <h1 class="page-title">Monitoring Alerts</h1>
-      <p class="page-sub">3 open alert(s) need review. Acknowledge or resolve each one.</p>
+      <p class="page-sub">3 open alerts need review. Acknowledge to claim one, resolve when fixed.</p>
       <div class="card mb-4">
         <div class="flex gap-2 items-center">
           <select class="form-select" style="max-width:200px"><option>All statuses</option><option>Open</option><option>Acknowledged</option><option>Resolved</option></select>
@@ -777,7 +979,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Alert</th><th>Severity</th><th>Status</th><th>Detected</th><th>Action</th></tr></thead>
+            <thead><tr><th scope="col">Alert</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Detected</th><th scope="col">Action</th></tr></thead>
             <tbody>
               <tr><td><strong>Leaked credential on api.sonatel.sn</strong><br><span class="text-muted text-xs">Public mirror contains a live-looking key.</span></td><td><span class="badge badge-critical">Critical</span></td><td>Open</td><td class="text-muted">5 min ago</td><td><button class="btn btn-sm btn-secondary">Acknowledge</button></td></tr>
               <tr><td><strong>Server header changed on bank.sn</strong><br><span class="text-muted text-xs">Baseline nginx/1.24.0, observed 1.18.0.</span></td><td><span class="badge badge-medium">Medium</span></td><td>Open</td><td class="text-muted">12 min ago</td><td><button class="btn btn-sm btn-secondary">Acknowledge</button></td></tr>
@@ -798,13 +1000,13 @@
           <div class="field"><label class="form-label">Client</label><select class="form-select"><option>Sahel Bank</option></select></div>
           <div class="field"><label class="form-label">Scan type</label><select class="form-select"><option>Vulnerability</option><option>Full assessment</option></select></div>
           <div class="field"><label class="form-label">Interval</label><select class="form-select"><option>Daily</option><option>Hourly</option><option>Weekly</option><option>Monthly</option></select></div>
-          <div class="field"><label class="form-label">&nbsp;</label><button class="btn btn-primary">Create</button></div>
+          <div class="field" style="justify-content:flex-end"><button class="btn btn-primary" style="min-height:44px">Create schedule</button></div>
         </div>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Client</th><th>Type</th><th>Every</th><th>Next run</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th scope="col">Client</th><th scope="col">Type</th><th scope="col">Every</th><th scope="col">Next run</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
             <tbody>
               <tr><td>Sahel Bank</td><td>Vulnerability</td><td>Daily</td><td class="text-muted">Tomorrow 08:00</td><td><span class="badge badge-low">Active</span></td><td><button class="btn btn-sm btn-secondary">Run now</button></td></tr>
               <tr><td>Sonatel Mobile</td><td>Full assessment</td><td>Weekly</td><td class="text-muted">Mon 06:00</td><td><span class="badge badge-low">Active</span></td><td><button class="btn btn-sm btn-secondary">Run now</button></td></tr>
@@ -871,7 +1073,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Law article</th><th>Obligation</th><th>Action required</th><th>Priority</th></tr></thead>
+            <thead><tr><th scope="col">Law article</th><th scope="col">Obligation</th><th scope="col">Action required</th><th scope="col">Priority</th></tr></thead>
             <tbody>
               <tr><td><strong>Art. 12</strong></td><td>Mandatory incident notification</td><td>Notify the National CERT within 72 hours.</td><td><span class="badge badge-critical">Immediate</span></td></tr>
               <tr><td><strong>Art. 18</strong></td><td>Critical infrastructure protection</td><td>Apply mitigating controls and document them.</td><td><span class="badge badge-high">Urgent</span></td></tr>
@@ -889,7 +1091,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Actor</th></tr></thead>
+            <thead><tr><th scope="col">Time</th><th scope="col">Action</th><th scope="col">Resource</th><th scope="col">Actor</th></tr></thead>
             <tbody>
               <tr><td class="text-muted">10:59</td><td>run_monitor_check</td><td>monitor #2</td><td>admin@ultorn.local</td></tr>
               <tr><td class="text-muted">10:42</td><td>complete_scan</td><td>scan #4</td><td>system (scheduled)</td></tr>
@@ -906,27 +1108,87 @@
 
 <script>
   // =========================================
-  // CONSOLE VIEW SWITCHING
+  // CONSOLE BEHAVIOUR
+  // Views are buttons with aria-current, the drawer is keyboard-operable,
+  // the URL is deep-linkable, and screen readers get an announcement.
   // =========================================
-  const navItems = document.querySelectorAll('.sidebar-item[data-view]');
-  const views = document.querySelectorAll('.view');
+  (function () {
+    const navItems = Array.from(document.querySelectorAll('.sidebar-item[data-view]'));
+    const views = Array.from(document.querySelectorAll('.view'));
+    const sidebar = document.querySelector('.sidebar');
+    const backdrop = document.querySelector('.sidebar-backdrop');
+    const burger = document.querySelector('.topbar-burger');
+    const topbarTitle = document.getElementById('topbar-title');
+    const announcer = document.getElementById('view-announcer');
+    const dashboardEl = document.querySelector('.dashboard');
 
-  function showView(name) {
-    views.forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
-    navItems.forEach((n) => n.classList.toggle('active', n.dataset.view === name));
-    document.querySelector('.main-content').scrollTop = 0;
-    if (history.replaceState) history.replaceState(null, '', '#' + name);
-  }
+    function labelFor(name) {
+      const item = navItems.find(function (n) { return n.dataset.view === name; });
+      return item ? item.textContent.trim() : 'Ultorn';
+    }
 
-  navItems.forEach((item) => {
-    item.addEventListener('click', () => showView(item.dataset.view));
-  });
+    function openDrawer() {
+      sidebar.classList.add('open');
+      backdrop.classList.add('open');
+      burger.setAttribute('aria-expanded', 'true');
+    }
 
-  // Deep-link support: /design.html#alerts
-  const initial = (location.hash || '').replace('#', '');
-  if (initial && document.getElementById('view-' + initial)) showView(initial);
+    function closeDrawer() {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('open');
+      burger.setAttribute('aria-expanded', 'false');
+    }
 
-  console.log('Ultorn design loaded — ready for customization');
+    function showView(name, options) {
+      const opts = options || {};
+      if (!document.getElementById('view-' + name)) name = 'dashboard';
+
+      views.forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + name); });
+      navItems.forEach(function (n) {
+        if (n.dataset.view === name) n.setAttribute('aria-current', 'page');
+        else n.removeAttribute('aria-current');
+      });
+
+      const label = labelFor(name);
+      topbarTitle.textContent = label;
+      document.title = label + ' — Ultorn Console';
+      announcer.textContent = label + ' view loaded';
+
+      if (opts.hash !== false && history.replaceState) history.replaceState(null, '', '#' + name);
+      if (opts.scroll !== false && dashboardEl) {
+        window.scrollTo({ top: dashboardEl.offsetTop, behavior: 'smooth' });
+      }
+      if (opts.closeDrawer !== false) closeDrawer();
+    }
+
+    navItems.forEach(function (item) {
+      item.addEventListener('click', function () { showView(item.dataset.view); });
+    });
+
+    burger.addEventListener('click', function () {
+      if (sidebar.classList.contains('open')) closeDrawer();
+      else openDrawer();
+    });
+    backdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('open')) closeDrawer();
+    });
+
+    // Deep links (/design.html#alerts) and browser back/forward.
+    window.addEventListener('hashchange', function () {
+      showView((location.hash || '').replace('#', '') || 'dashboard', { hash: false, scroll: false });
+    });
+
+    // Hero and in-page calls to action.
+    document.querySelectorAll('[data-goto]').forEach(function (el) {
+      el.addEventListener('click', function () { showView(el.dataset.goto, { hash: true }); });
+    });
+
+    const initial = (location.hash || '').replace('#', '');
+    showView(initial || 'dashboard', { hash: false, scroll: false });
+
+    console.log('Ultorn design loaded — ready for customization');
+  })();
 </script>
 </body>
 </html>

@@ -166,3 +166,90 @@
   color: #111113;
   flex: 0 0 auto;
 }
+
+/* ============================================================
+   Interaction basics: visible focus, target sizes, motion
+   ============================================================ */
+
+@keyframes ultorn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Every interactive control gets the same focus treatment, so keyboard
+   users always know where they are (WCAG 2.4.7). */
+.console-shell :focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.console-sidebar :focus-visible {
+  outline-color: #c4b5fd;
+}
+.console-shell button,
+.console-shell a,
+.console-shell input,
+.console-shell select,
+.console-shell textarea {
+  min-height: 40px;
+}
+.console-shell input[type="checkbox"] {
+  min-height: 0;
+}
+.sidebar-link {
+  min-height: 42px;
+}
+.list-row-button {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+/* The list/detail workspace stacks on narrow screens instead of forcing
+   two cramped columns. Touch targets stay full-width. */
+@media (max-width: 760px) {
+  .split-panel-body {
+    flex-direction: column !important;
+    max-height: none !important;
+  }
+  .split-panel-list {
+    flex: 0 0 auto !important;
+    max-height: 260px;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .split-panel-detail {
+    flex: 1 1 auto !important;
+    padding: 1.1rem !important;
+  }
+  .console-main main {
+    padding: 1.25rem !important;
+  }
+  .console-main .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-shell *,
+  .console-shell *::before,
+  .console-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes ultorn-sheen {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 560px) {
+  .console-main .metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import '../marketing-page.css'
 import '../console.css'
 import Modal from '../../components/Modal'
+import { Button, ConfirmDialog, Field, Select, TextInput, Textarea, Toast } from './ui'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const ACCENT = '#7c3aed'
@@ -142,28 +143,31 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
         <p className="login-sub">Sign in to the operator console.</p>
 
         <form className="login-form" onSubmit={submit}>
-          <label className="sr-only" htmlFor="login-email">Email</label>
-          <input
-            id="login-email"
-            className="login-input"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <label className="sr-only" htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            className="login-input"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-          {error && <div className="login-error">{error}</div>}
-          <button type="submit" className="login-btn" disabled={submitting}>
+          <div className="login-field">
+            <label className="login-label" htmlFor="login-email">Email</label>
+            <input
+              id="login-email"
+              className="login-input"
+              type="email"
+              placeholder="you@company.sn"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div className="login-field">
+            <label className="login-label" htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              className="login-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          {error && <div className="login-error" role="alert">{error}</div>}
+          <button type="submit" className="login-btn" disabled={submitting} aria-busy={submitting}>
             {submitting ? 'Verifying…' : 'Sign in'}
           </button>
         </form>
@@ -178,12 +182,35 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
 // ============================================================
 // Shared: stat tile, badge, split list/detail panel
 // ============================================================
-function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function StatCard({
+  label,
+  value,
+  hint,
+  tone = 'neutral',
+  emphasis = false,
+}: {
+  label: string
+  value: string | number
+  hint?: string
+  tone?: 'neutral' | 'danger' | 'warning' | 'success'
+  emphasis?: boolean
+}) {
+  const valueColor =
+    tone === 'danger' ? '#b91c1c' : tone === 'warning' ? '#92400e' : tone === 'success' ? '#166534' : '#111113'
   return (
-    <div style={styles.statCard}>
+    <div style={{ ...styles.statCard, ...(emphasis ? styles.statCardEmphasis : {}) }}>
       <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{value}</div>
+      <div style={{ ...styles.statValue, color: valueColor }}>{value}</div>
       {hint && <div style={styles.statHint}>{hint}</div>}
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={styles.metricItem}>
+      <div style={styles.metricValue}>{value}</div>
+      <div style={styles.metricLabel}>{label}</div>
     </div>
   )
 }
@@ -210,6 +237,8 @@ function SplitPanel({
   renderRow,
   renderDetail,
   emptyLabel,
+  emptyHint,
+  loading = false,
 }: {
   title: string
   action?: React.ReactNode
@@ -219,6 +248,8 @@ function SplitPanel({
   renderRow: (item: any, selected: boolean) => React.ReactNode
   renderDetail: (item: any) => React.ReactNode
   emptyLabel: string
+  emptyHint?: string
+  loading?: boolean
 }) {
   const selected = items.find((i) => i.id === selectedId) || null
 
@@ -228,23 +259,37 @@ function SplitPanel({
         <h3 style={styles.panelTitle}>{title}</h3>
         {action}
       </div>
-      <div style={styles.panelBody}>
-        <div style={styles.listPane}>
-          {items.length === 0 && <div style={styles.emptyState}>{emptyLabel}</div>}
-          {items.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => onSelect(item)}
-              style={{
-                ...styles.listRow,
-                ...(item.id === selectedId ? styles.listRowActive : {}),
-              }}
-            >
-              {renderRow(item, item.id === selectedId)}
+      <div style={styles.panelBody} className="split-panel-body">
+        <div style={styles.listPane} className="split-panel-list">
+          {loading && items.length === 0 && (
+            <div style={styles.emptyState} role="status" aria-live="polite">Loading…</div>
+          )}
+          {!loading && items.length === 0 && (
+            <div style={styles.emptyState}>
+              <div>{emptyLabel}</div>
+              {emptyHint && <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', opacity: 0.85 }}>{emptyHint}</div>}
             </div>
-          ))}
+          )}
+          {items.map((item) => {
+            const isSelected = item.id === selectedId
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="list-row-button"
+                onClick={() => onSelect(item)}
+                aria-current={isSelected ? 'true' : undefined}
+                style={{
+                  ...styles.listRow,
+                  ...(isSelected ? styles.listRowActive : {}),
+                }}
+              >
+                {renderRow(item, isSelected)}
+              </button>
+            )
+          })}
         </div>
-        <div style={styles.detailPane}>
+        <div style={styles.detailPane} className="split-panel-detail">
           {selected ? renderDetail(selected) : (
             <div style={styles.emptyState}>Select an item to see details.</div>
           )}
@@ -253,6 +298,17 @@ function SplitPanel({
     </div>
   )
 }
+
+class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+type ToastTone = 'info' | 'error' | 'success'
 
 function Page() {
   const [token, setToken] = useState<string | null>(null)
@@ -269,45 +325,89 @@ function Page() {
   const [monitors, setMonitors] = useState<any[]>([])
   const [alerts, setAlerts] = useState<any[]>([])
   const [codeScans, setCodeScans] = useState<any[]>([])
-  const [message, setMessage] = useState({ text: '', type: 'info' })
+  const [message, setMessage] = useState<{ text: string; type: ToastTone } | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('ultorn_sidebar_collapsed') === 'true')
   }, [])
 
   useEffect(() => {
-    if (token) {
-      fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+    if (!token) return
+    fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (r.status === 401) throw new Error('Session expired')
+        if (!r.ok) throw new Error('Could not load your profile')
+        return r.json()
       })
-        .then((r) => r.json())
-        .then((data) => setUser(data))
-        .catch(() => {})
-    }
+      .then((data) => setUser(data))
+      .catch(() => {
+        localStorage.removeItem('token')
+        setToken(null)
+      })
   }, [token])
 
-  const api = async (path: string, opts: any = {}) => {
-    const res = await fetch(`${API_URL}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...opts.headers,
-      },
-      ...opts,
-    })
+  useEffect(() => () => {
+    if (messageTimer.current) clearTimeout(messageTimer.current)
+  }, [])
+
+  /**
+   * One API entry point: normalises errors, parses JSON safely, and sends the
+   * user back to sign-in when their session is no longer valid.
+   */
+  const api = async (path: string, opts: RequestInit = {}) => {
+    let res: Response
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...opts,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(opts.headers || {}),
+        },
+      })
+    } catch {
+      throw new ApiError('Cannot reach the API. Check that the backend is running.', 0)
+    }
+
     if (res.status === 401) {
       localStorage.removeItem('token')
       setToken(null)
       setView('login')
+      throw new ApiError('Your session expired. Please sign in again.', 401)
     }
-    return res.json()
+
+    const raw = await res.text()
+    let data: any = null
+    if (raw) {
+      try {
+        data = JSON.parse(raw)
+      } catch {
+        data = raw
+      }
+    }
+
+    if (!res.ok) {
+      const detail =
+        typeof data?.detail === 'string'
+          ? data.detail
+          : Array.isArray(data?.detail)
+            ? data.detail.map((d: any) => d.msg || String(d)).join(', ')
+            : `Request failed (${res.status})`
+      throw new ApiError(detail, res.status)
+    }
+
+    return data
   }
 
-  const notify = (text: string, type: string = 'info') => {
+  const notify = (text: string, type: ToastTone = 'info') => {
+    if (messageTimer.current) clearTimeout(messageTimer.current)
     setMessage({ text, type })
-    setTimeout(() => setMessage({ text: '', type: 'info' }), 5000)
+    messageTimer.current = setTimeout(() => setMessage(null), 5000)
   }
 
   // ---------- LOGIN ----------
@@ -315,6 +415,8 @@ function Page() {
     return <LoginScreen onToken={(t: string) => { setToken(t); setView('dashboard') }} />
   }
 
+  // Grouped so no menu exposes more than four choices at once (Hick's Law),
+  // and ordered by the job an analyst is doing rather than by internal module.
   const NAV_GROUPS = [
     {
       label: 'Overview',
@@ -329,25 +431,27 @@ function Page() {
       ],
     },
     {
-      label: 'Intelligence',
-      items: [{ key: 'ai', label: 'AI Guard', icon: 'ai' }],
+      label: 'Monitoring',
+      items: [
+        { key: 'monitors', label: 'Monitors', icon: 'monitors' },
+        { key: 'alerts', label: 'Alerts', icon: 'alerts' },
+        { key: 'schedules', label: 'Scan Schedules', icon: 'schedules' },
+      ],
+    },
+    {
+      label: 'Analysis',
+      items: [
+        { key: 'code-scans', label: 'Code Scans', icon: 'code' },
+        { key: 'compliance', label: 'Compliance', icon: 'compliance' },
+        { key: 'reports', label: 'Reports', icon: 'reports' },
+        { key: 'ai', label: 'AI Guard', icon: 'ai' },
+      ],
     },
     {
       label: 'Governance',
       items: [
         { key: 'audit', label: 'Audit', icon: 'audit' },
         ...(user?.role === 'admin' ? [{ key: 'admin', label: 'Admin', icon: 'admin' }] : []),
-      ],
-    },
-    {
-      label: 'Operations',
-      items: [
-        { key: 'monitors', label: 'Monitors', icon: 'monitors' },
-        { key: 'alerts', label: 'Alerts', icon: 'alerts' },
-        { key: 'schedules', label: 'Scan Schedules', icon: 'schedules' },
-        { key: 'code-scans', label: 'Code Scans', icon: 'code' },
-        { key: 'compliance', label: 'Compliance', icon: 'compliance' },
-        { key: 'reports', label: 'Reports', icon: 'reports' },
       ],
     },
   ]
@@ -392,16 +496,18 @@ function Page() {
 
         <div style={styles.sidebarNavScroll}>
           {NAV_GROUPS.map((group) => (
-            <nav key={group.label} style={styles.sidebarNav}>
-              <div className="sidebar-group-label" style={styles.sidebarGroupLabel}>{group.label}</div>
+            <nav key={group.label} aria-label={`${group.label} navigation`} style={styles.sidebarNav}>
+              <div className="sidebar-group-label" style={styles.sidebarGroupLabel} aria-hidden="true">{group.label}</div>
               {group.items.map((item) => (
                 <button
                   key={item.key}
+                  type="button"
                   onClick={() => { setView(item.key); setMobileOpen(false) }}
+                  aria-current={view === item.key ? 'page' : undefined}
                   style={view === item.key ? { ...styles.sidebarLink, ...styles.sidebarLinkActive } : styles.sidebarLink}
                   className="sidebar-link"
                 >
-                  <span style={styles.sidebarIcon}>{ICONS[item.icon]}</span>
+                  <span style={styles.sidebarIcon} aria-hidden="true">{ICONS[item.icon]}</span>
                   <span className="sidebar-label">{item.label}</span>
                 </button>
               ))}
@@ -433,17 +539,8 @@ function Page() {
         </div>
 
         <main style={styles.main}>
-          {message.text && (
-            <div
-              style={{
-                ...styles.alert,
-                background: message.type === 'error' ? 'rgba(220,38,38,0.08)' : ACCENT_SOFT,
-                color: message.type === 'error' ? '#b91c1c' : '#5b21b6',
-                border: message.type === 'error' ? '1px solid rgba(220,38,38,0.25)' : `1px solid ${ACCENT_BORDER}`,
-              }}
-            >
-              {message.text}
-            </div>
+          {message && (
+            <Toast message={message.text} tone={message.type} onDismiss={() => setMessage(null)} />
           )}
 
           {view === 'dashboard' && <Dashboard ctx={ctx} />}
@@ -478,31 +575,114 @@ function severityTone(s: string) {
 }
 
 function Dashboard({ ctx }: { ctx: any }) {
-  const { api, token, clients, setClients, scans, setScans, audit, setAudit } = ctx
+  const { api, token, clients, setClients, scans, setScans, audit, setAudit, setView } = ctx
     const [stats, setStats] = useState<any>({})
     const [alerts, setAlerts] = useState<any[]>([])
     const [monitors, setMonitors] = useState<any[]>([])
     const [codeIssues, setCodeIssues] = useState(0)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
 
-    useEffect(() => {
-      api('/scans').then((data: any) => {
-        setScans(data)
-        const critical = data.reduce((acc: number, s: any) => acc + (s.summary?.critical || 0), 0)
-        const high = data.reduce((acc: number, s: any) => acc + (s.summary?.high || 0), 0)
-        setStats({ totalScans: data.length, critical, high })
-      })
-      api('/clients').then((data: any) => setClients(data))
-      api('/audit?limit=8').then((data: any) => setAudit(data))
-      api('/alerts').then((data: any) => setAlerts(Array.isArray(data) ? data : []))
-      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
-      api('/code-scans').then((data: any) => {
-        const issues = (Array.isArray(data) ? data : []).reduce((acc: number, s: any) => acc + (s.issues_found || 0), 0)
-        setCodeIssues(issues)
-      })
-    }, [token])
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const [scansData, clientsData, auditData, alertsData, monitorsData, codeData] = await Promise.all([
+          api('/scans'),
+          api('/clients'),
+          api('/audit?limit=8'),
+          api('/alerts'),
+          api('/monitors'),
+          api('/code-scans'),
+        ])
+        const allScans = Array.isArray(scansData) ? scansData : []
+        setScans(allScans)
+        setClients(Array.isArray(clientsData) ? clientsData : [])
+        setAudit(Array.isArray(auditData) ? auditData : [])
+        setAlerts(Array.isArray(alertsData) ? alertsData : [])
+        setMonitors(Array.isArray(monitorsData) ? monitorsData : [])
+        setStats({
+          totalScans: allScans.length,
+          critical: allScans.reduce((acc: number, s: any) => acc + (s.summary?.critical || 0), 0),
+          high: allScans.reduce((acc: number, s: any) => acc + (s.summary?.high || 0), 0),
+        })
+        setCodeIssues(
+          (Array.isArray(codeData) ? codeData : []).reduce((acc: number, s: any) => acc + (s.issues_found || 0), 0)
+        )
+      } catch (e: any) {
+        setError(e.message || 'Could not load the dashboard')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    useEffect(() => { load() }, [token])
 
     const openAlerts = alerts.filter((a: any) => a.status === 'open')
     const activeMonitors = monitors.filter((m: any) => m.is_active)
+
+    // Four primary risk indicators first; activity counts are secondary.
+    const primary = (
+      <div style={styles.statGrid}>
+        <StatCard
+          emphasis
+          label="Critical findings"
+          value={stats.critical || 0}
+          tone={(stats.critical || 0) > 0 ? 'danger' : 'success'}
+          hint={(stats.critical || 0) > 0 ? 'Requires human review' : 'None outstanding'}
+        />
+        <StatCard
+          emphasis
+          label="Open alerts"
+          value={openAlerts.length}
+          tone={openAlerts.length > 0 ? 'warning' : 'success'}
+          hint={openAlerts.length > 0 ? 'Needs triage' : 'All clear'}
+        />
+        <StatCard
+          emphasis
+          label="Code issues"
+          value={codeIssues}
+          tone={codeIssues > 0 ? 'warning' : 'success'}
+          hint="Across code scans"
+        />
+        <StatCard
+          emphasis
+          label="Active monitors"
+          value={activeMonitors.length}
+          tone="neutral"
+          hint={`${monitors.length} configured`}
+        />
+      </div>
+    )
+
+    if (loading) {
+      return (
+        <div style={styles.section}>
+          <h1 style={styles.pageTitle}>Dashboard</h1>
+          <p style={styles.hint}>Live posture across scanning, continuous monitoring, and AI code review.</p>
+          <div style={styles.statGrid} role="status" aria-live="polite">
+            <div style={styles.skeleton} />
+            <div style={styles.skeleton} />
+            <div style={styles.skeleton} />
+            <div style={styles.skeleton} />
+            <span className="sr-only">Loading dashboard</span>
+          </div>
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div style={styles.section}>
+          <h1 style={styles.pageTitle}>Dashboard</h1>
+          <div style={styles.lightCard}>
+            <h3 style={styles.h3}>Could not load the dashboard</h3>
+            <p style={{ ...styles.hint, marginBottom: '1rem' }}>{error}</p>
+            <button type="button" onClick={load} style={styles.button}>Try again</button>
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div style={styles.section}>
@@ -510,19 +690,21 @@ function Dashboard({ ctx }: { ctx: any }) {
         <p style={styles.hint}>
           Live posture across scanning, continuous monitoring, and AI code review.
         </p>
-        <div style={styles.statGrid}>
-          <StatCard label="Total Scans" value={stats.totalScans || 0} />
-          <StatCard label="Critical Findings" value={stats.critical || 0} hint={(stats.critical || 0) > 0 ? 'Needs review' : 'Clear'} />
-          <StatCard label="Open Alerts" value={openAlerts.length} hint={openAlerts.length > 0 ? 'Needs triage' : 'All clear'} />
-          <StatCard label="Active Monitors" value={activeMonitors.length} hint={`${monitors.length} total`} />
-          <StatCard label="High Findings" value={stats.high || 0} />
-          <StatCard label="Code Issues" value={codeIssues} hint="Across code scans" />
-          <StatCard label="Clients" value={clients.length} />
+        {primary}
+
+        <div style={styles.metricStrip} className="metric-strip">
+          <Metric label="Total scans" value={stats.totalScans || 0} />
+          <Metric label="High findings" value={stats.high || 0} />
+          <Metric label="Clients" value={clients.length} />
+          <Metric label="Monitors" value={monitors.length} />
         </div>
 
         <div style={styles.split}>
           <div style={styles.panelDark}>
-            <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Recent Scans</h3></div>
+            <div style={styles.panelHeader}>
+              <h3 style={styles.panelTitle}>Recent Scans</h3>
+              <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start a scan</button>
+            </div>
             <div style={{ padding: '0 1.25rem 1.25rem' }}>
               {scans.slice(0, 6).map((s: any) => (
                 <div key={s.id} style={styles.auditRow}>
@@ -533,29 +715,44 @@ function Dashboard({ ctx }: { ctx: any }) {
                   <Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge>
                 </div>
               ))}
-              {scans.length === 0 && <div style={styles.listRowSub}>No scans yet.</div>}
+              {scans.length === 0 && (
+                <div style={styles.emptyState}>
+                  No scans yet — a scan maps your attack surface and files findings for review.
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start the first scan</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div style={styles.panelDark}>
-            <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Open Alerts</h3></div>
+            <div style={styles.panelHeader}>
+              <h3 style={styles.panelTitle}>Open Alerts</h3>
+              <button type="button" onClick={() => setView('alerts')} style={styles.darkActionBtn}>Review all</button>
+            </div>
             <div style={{ padding: '0 1.25rem 1.25rem' }}>
               {openAlerts.slice(0, 6).map((a: any) => (
                 <div key={a.id} style={styles.auditRow}>
                   <div>
                     <strong style={{ color: '#f5f5f7' }}>{a.title}</strong>
-                    <span style={styles.listRowSub}> · {a.status}</span>
+                    <span style={styles.listRowSub}> · {a.severity}</span>
                   </div>
-                  <Badge tone={severityTone(a.severity)}>{a.severity}</Badge>
+                  <Badge tone={severityTone(a.severity)}>{a.status}</Badge>
                 </div>
               ))}
-              {openAlerts.length === 0 && <div style={styles.listRowSub}>No open alerts.</div>}
+              {openAlerts.length === 0 && (
+                <div style={styles.emptyState}>No open alerts. Monitoring is running in the background.</div>
+              )}
             </div>
           </div>
         </div>
 
         <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
-          <div style={styles.panelHeader}><h3 style={styles.panelTitle}>Recent Audit Activity</h3></div>
+          <div style={styles.panelHeader}>
+            <h3 style={styles.panelTitle}>Recent Audit Activity</h3>
+            <button type="button" onClick={() => setView('audit')} style={styles.darkActionBtn}>View log</button>
+          </div>
           <div style={{ padding: '0 1.25rem 1.25rem' }}>
             {audit.map((a: any) => (
               <div key={a.id} style={styles.auditRow}>
@@ -566,6 +763,7 @@ function Dashboard({ ctx }: { ctx: any }) {
                 <span style={styles.listRowSub}>{new Date(a.created_at).toLocaleString()}</span>
               </div>
             ))}
+            {audit.length === 0 && <div style={styles.emptyState}>No activity recorded yet.</div>}
           </div>
         </div>
       </div>
@@ -582,57 +780,107 @@ function ClientsSection({ ctx }: { ctx: any }) {
     const [selectedId, setSelectedId] = useState<any>(null)
     const [scopes, setScopes] = useState<any[]>([])
     const [newScope, setNewScope] = useState({ target: '', target_type: 'domain' })
+    const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
-      api('/clients').then((data: any) => setClients(data))
+      api('/clients')
+        .then((data: any) => setClients(Array.isArray(data) ? data : []))
+        .catch((e: any) => notify(e.message || 'Could not load clients', 'error'))
+        .finally(() => setLoading(false))
     }, [token])
 
     useEffect(() => {
       if (selectedId) {
-        api(`/clients/${selectedId}/scopes`).then((data: any) => setScopes(Array.isArray(data) ? data : []))
+        api(`/clients/${selectedId}/scopes`)
+          .then((data: any) => setScopes(Array.isArray(data) ? data : []))
+          .catch((e: any) => notify(e.message || 'Could not load scopes', 'error'))
       }
     }, [selectedId])
 
     const createClient = async (e: any) => {
       e.preventDefault()
-      await api('/clients', { method: 'POST', body: JSON.stringify(newClient) })
-      setNewClient({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
-      setShowAdd(false)
-      api('/clients').then((data: any) => setClients(data))
-      notify('Client created')
+      setSubmitting(true)
+      try {
+        await api('/clients', { method: 'POST', body: JSON.stringify(newClient) })
+        setNewClient({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
+        setShowAdd(false)
+        const data = await api('/clients')
+        setClients(Array.isArray(data) ? data : [])
+        notify('Client created', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not create the client', 'error')
+      } finally {
+        setSubmitting(false)
+      }
     }
 
     const addScope = async (e: any) => {
       e.preventDefault()
-      await api(`/clients/${selectedId}/scopes`, { method: 'POST', body: JSON.stringify(newScope) })
-      setNewScope({ target: '', target_type: 'domain' })
-      api(`/clients/${selectedId}/scopes`).then((data: any) => setScopes(Array.isArray(data) ? data : []))
-      notify('Scope added')
+      try {
+        await api(`/clients/${selectedId}/scopes`, { method: 'POST', body: JSON.stringify(newScope) })
+        setNewScope({ target: '', target_type: 'domain' })
+        const data = await api(`/clients/${selectedId}/scopes`)
+        setScopes(Array.isArray(data) ? data : [])
+        notify('Scope added', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not add the scope', 'error')
+      }
     }
 
     return (
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Clients</h1>
+        <p style={styles.hint}>Onboard clients, then register the domains, IPs, and URLs they have authorised you to assess.</p>
 
         {showAdd && (
-          <Modal title="Add Client" onClose={() => setShowAdd(false)}>
-            <form onSubmit={createClient} style={styles.form}>
-              <input placeholder="Client name *" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} style={styles.input} autoFocus required />
-              <input placeholder="Legal name" value={newClient.legal_name} onChange={(e) => setNewClient({ ...newClient, legal_name: e.target.value })} style={styles.input} />
-              <input placeholder="Contact email" type="email" value={newClient.contact_email} onChange={(e) => setNewClient({ ...newClient, contact_email: e.target.value })} style={styles.input} />
-              <input placeholder="Contact phone" type="tel" value={newClient.contact_phone} onChange={(e) => setNewClient({ ...newClient, contact_phone: e.target.value })} style={styles.input} />
-              <button type="submit" style={styles.button}>Add Client</button>
+          <Modal title="Add client" onClose={() => setShowAdd(false)}>
+            <form onSubmit={createClient}>
+              <Field label="Client name" htmlFor="client-name" tone="dark" required>
+                <TextInput
+                  value={newClient.name}
+                  onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                  autoFocus
+                  required
+                  placeholder="e.g. Sahel Bank"
+                />
+              </Field>
+              <Field label="Legal name" htmlFor="client-legal-name" tone="dark" hint="Used on contracts and reports">
+                <TextInput
+                  value={newClient.legal_name}
+                  onChange={(e) => setNewClient({ ...newClient, legal_name: e.target.value })}
+                />
+              </Field>
+              <Field label="Contact email" htmlFor="client-email" tone="dark">
+                <TextInput
+                  type="email"
+                  value={newClient.contact_email}
+                  onChange={(e) => setNewClient({ ...newClient, contact_email: e.target.value })}
+                />
+              </Field>
+              <Field label="Contact phone" htmlFor="client-phone" tone="dark">
+                <TextInput
+                  type="tel"
+                  value={newClient.contact_phone}
+                  onChange={(e) => setNewClient({ ...newClient, contact_phone: e.target.value })}
+                />
+              </Field>
+              <Button type="submit" loading={submitting} disabled={!newClient.name.trim()}>
+                Add client
+              </Button>
             </form>
           </Modal>
         )}
 
         <SplitPanel
           title="All Clients"
-          action={<button onClick={() => setShowAdd(true)} style={styles.darkActionBtn}>+ Add Client</button>}
+          loading={loading}
+          action={<button type="button" onClick={() => setShowAdd(true)} style={styles.darkActionBtn}>+ Add client</button>}
           items={clients}
           selectedId={selectedId}
           onSelect={(c) => setSelectedId(c.id)}
           emptyLabel="No clients yet."
+          emptyHint="Add a client to start registering scan scopes."
           renderRow={(c) => (
             <>
               <div style={styles.listRowMain}>
@@ -659,23 +907,24 @@ function ClientsSection({ ctx }: { ctx: any }) {
                     <Badge tone="neutral">{s.target_type}</Badge>
                   </div>
                 ))}
-                <form onSubmit={addScope} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                <form onSubmit={addScope} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
                   <input
-                    placeholder="domain / IP / URL"
+                    aria-label="Scope target (domain, IP, or URL)"
                     value={newScope.target}
                     onChange={(e) => setNewScope({ ...newScope, target: e.target.value })}
-                    style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                    style={{ ...styles.input, flex: '1 1 200px', background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
                   />
                   <select
+                    aria-label="Scope type"
                     value={newScope.target_type}
                     onChange={(e) => setNewScope({ ...newScope, target_type: e.target.value })}
-                    style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                    style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
                   >
                     <option value="domain">Domain</option>
                     <option value="ip">IP</option>
                     <option value="url">URL</option>
                   </select>
-                  <button type="submit" style={styles.darkActionBtn}>Add</button>
+                  <button type="submit" disabled={!newScope.target.trim()} style={{ ...styles.darkActionBtn, opacity: newScope.target.trim() ? 1 : 0.5 }}>Add</button>
                 </form>
               </div>
             </>
@@ -693,24 +942,45 @@ function ScansSection({ ctx }: { ctx: any }) {
     const [newScan, setNewScan] = useState({ client_id: '', scan_type: 'vulnerability' })
     const [showStart, setShowStart] = useState(false)
     const [selectedId, setSelectedId] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
-      api('/scans').then((data: any) => setScans(data))
-      api('/clients').then((data: any) => setClients(data))
+      Promise.all([api('/scans'), api('/clients')])
+        .then(([scansData, clientsData]) => {
+          setScans(Array.isArray(scansData) ? scansData : [])
+          setClients(Array.isArray(clientsData) ? clientsData : [])
+        })
+        .catch((e: any) => notify(e.message || 'Could not load scans', 'error'))
+        .finally(() => setLoading(false))
     }, [token])
 
     const startScan = async (e: any) => {
       e.preventDefault()
-      await api('/scans', { method: 'POST', body: JSON.stringify({ client_id: parseInt(newScan.client_id), scan_type: newScan.scan_type }) })
-      setShowStart(false)
-      api('/scans').then((data: any) => setScans(data))
-      notify('Scan started: runs on all scopes, no verification gate')
+      setSubmitting(true)
+      try {
+        await api('/scans', { method: 'POST', body: JSON.stringify({ client_id: parseInt(newScan.client_id), scan_type: newScan.scan_type }) })
+        setShowStart(false)
+        setNewScan({ client_id: '', scan_type: 'vulnerability' })
+        const data = await api('/scans')
+        setScans(Array.isArray(data) ? data : [])
+        notify('Scan started. It runs on all scopes with no verification gate.', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not start the scan', 'error')
+      } finally {
+        setSubmitting(false)
+      }
     }
 
     const runScan = async (id: number) => {
-      const res = await api(`/scans/${id}/run`, { method: 'POST' })
-      notify(res.status || 'Scan completed')
-      api('/scans').then((data: any) => setScans(data))
+      try {
+        const res = await api(`/scans/${id}/run`, { method: 'POST' })
+        notify(res.status || 'Scan completed', 'success')
+        const data = await api('/scans')
+        setScans(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not run the scan', 'error')
+      }
     }
 
     return (
@@ -721,29 +991,35 @@ function ScansSection({ ctx }: { ctx: any }) {
         </p>
 
         {showStart && (
-          <Modal title="Start Scan" onClose={() => setShowStart(false)}>
-            <form onSubmit={startScan} style={styles.form}>
-              <select value={newScan.client_id} onChange={(e) => setNewScan({ ...newScan, client_id: e.target.value })} style={styles.input}>
-                <option value="">Select client</option>
-                {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select value={newScan.scan_type} onChange={(e) => setNewScan({ ...newScan, scan_type: e.target.value })} style={styles.input}>
-                <option value="vulnerability">Vulnerability Assessment</option>
-                <option value="code">AI Code Scan</option>
-                <option value="monitoring">Continuous Monitoring</option>
-              </select>
-              <button type="submit" style={styles.button}>Start Scan</button>
+          <Modal title="Start scan" onClose={() => setShowStart(false)}>
+            <form onSubmit={startScan}>
+              <Field label="Client" htmlFor="scan-client" tone="dark" required>
+                <Select value={newScan.client_id} onChange={(e) => setNewScan({ ...newScan, client_id: e.target.value })}>
+                  <option value="">Select a client</option>
+                  {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Assessment type" htmlFor="scan-type" tone="dark">
+                <Select value={newScan.scan_type} onChange={(e) => setNewScan({ ...newScan, scan_type: e.target.value })}>
+                  <option value="vulnerability">Vulnerability assessment</option>
+                  <option value="web">Web application</option>
+                  <option value="full">Full assessment</option>
+                </Select>
+              </Field>
+              <Button type="submit" loading={submitting} disabled={!newScan.client_id}>Start scan</Button>
             </form>
           </Modal>
         )}
 
         <SplitPanel
           title="Scans"
-          action={<button onClick={() => setShowStart(true)} style={styles.darkActionBtn}>+ Start Scan</button>}
+          loading={loading}
+          action={<button type="button" onClick={() => setShowStart(true)} style={styles.darkActionBtn}>+ Start scan</button>}
           items={scans}
           selectedId={selectedId}
           onSelect={(s) => setSelectedId(s.id)}
           emptyLabel="No scans yet."
+          emptyHint="Start a scan to map the client's attack surface."
           renderRow={(s) => (
             <>
               <div style={styles.listRowMain}>
@@ -763,7 +1039,7 @@ function ScansSection({ ctx }: { ctx: any }) {
                 <div style={styles.subCard}><div style={styles.subCardLabel}>High</div><div style={styles.subCardValue}>{s.summary?.high || 0}</div></div>
               </div>
               {s.status !== 'running' && (
-                <button onClick={() => runScan(s.id)} style={{ ...styles.darkActionBtn, marginTop: '1.25rem' }}>Run Scan</button>
+                <button type="button" onClick={() => runScan(s.id)} style={{ ...styles.darkActionBtn, marginTop: '1.25rem' }}>Run scan</button>
               )}
             </>
           )}
@@ -787,9 +1063,14 @@ function FindingsSection({ ctx }: { ctx: any }) {
     }, [token])
 
     const reviewFinding = async (id: number) => {
-      await api(`/findings/${id}/review`, { method: 'POST', body: JSON.stringify({ status: reviewStatus }) })
-      notify('Finding reviewed: human analyst attested')
-      api('/scans').then((data: any) => setFindings(data.flatMap((s: any) => s.findings || [])))
+      try {
+        await api(`/findings/${id}/review`, { method: 'POST', body: JSON.stringify({ status: reviewStatus }) })
+        notify('Finding reviewed: human analyst attested', 'success')
+        const data = await api('/scans')
+        setFindings(data.flatMap((s: any) => s.findings || []))
+      } catch (e: any) {
+        notify(e.message || 'Could not save the review', 'error')
+      }
     }
 
     return (
@@ -815,7 +1096,12 @@ function FindingsSection({ ctx }: { ctx: any }) {
             </>
           )}
           renderDetail={(f) => {
-            const evidence = f.evidence ? JSON.parse(f.evidence) : {}
+            let evidence: any = {}
+            try {
+              evidence = f.evidence ? JSON.parse(f.evidence) : {}
+            } catch {
+              evidence = { raw: f.evidence }
+            }
             const needsReview = f.severity === 'critical' || f.severity === 'high'
             return (
               <>
@@ -831,9 +1117,10 @@ function FindingsSection({ ctx }: { ctx: any }) {
                 {needsReview && (
                   <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
                     <select
+                      aria-label="New status for this finding"
                       value={reviewStatus}
                       onChange={(e) => setReviewStatus(e.target.value)}
-                      style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                      style={{ ...styles.input, background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
                     >
                       <option value="open">Open</option>
                       <option value="fixed">Fixed</option>
@@ -855,29 +1142,43 @@ function FindingsSection({ ctx }: { ctx: any }) {
 // AI / SOVEREIGNTY
 // ============================================================
 function AISection({ ctx }: { ctx: any }) {
-  const { api, token } = ctx
+  const { api, token, notify } = ctx
     const [prompt, setPrompt] = useState('')
     const [clientName, setClientName] = useState('')
     const [response, setResponse] = useState('')
     const [aiMeta, setAiMeta] = useState<any>(null)
     const [sanitized, setSanitized] = useState('')
     const [forceLocal, setForceLocal] = useState(false)
+    const [busy, setBusy] = useState(false)
 
     const queryAI = async () => {
-      const res = await api('/ai/query', {
-        method: 'POST',
-        body: JSON.stringify({ prompt, client_name: clientName || undefined, force_local: forceLocal }),
-      })
-      setResponse(res.response || 'No response')
-      setAiMeta({ provider: res.provider, model: res.model, sanitized: res.prompt_sanitized, id: res.query_id })
+      if (!prompt.trim()) return
+      setBusy(true)
+      try {
+        const res = await api('/ai/query', {
+          method: 'POST',
+          body: JSON.stringify({ prompt, client_name: clientName || undefined, force_local: forceLocal }),
+        })
+        setResponse(res.response || 'No response')
+        setAiMeta({ provider: res.provider, model: res.model, sanitized: res.prompt_sanitized, id: res.query_id })
+      } catch (e: any) {
+        notify(e.message || 'The AI query failed', 'error')
+      } finally {
+        setBusy(false)
+      }
     }
 
-    const doSanitize = () => {
-      fetch(`${API_URL}/sanitize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ text: prompt, client_name: clientName || undefined }),
-      }).then((r) => r.json()).then((data: any) => setSanitized(data.sanitized || ''))
+    const doSanitize = async () => {
+      if (!prompt.trim()) return
+      try {
+        const data = await api('/sanitize', {
+          method: 'POST',
+          body: JSON.stringify({ text: prompt, client_name: clientName || undefined }),
+        })
+        setSanitized(data.sanitized || '')
+      } catch (e: any) {
+        notify(e.message || 'Could not preview the sanitization', 'error')
+      }
     }
 
     return (
@@ -890,23 +1191,33 @@ function AISection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Send to AI</h3>
-          <textarea
-            placeholder="e.g. 'Analyze this vulnerability report for client Acme Corp at 10.0.0.5 with API key sk-12345'"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            style={styles.textarea}
-            rows={4}
-          />
+          <Field
+            label="Prompt"
+            htmlFor="ai-prompt"
+            hint="Client names, IPs, credentials, and PII are stripped before any model sees it."
+          >
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="e.g. 'Analyze this vulnerability report for client Acme Corp at 10.0.0.5 with API key sk-12345'"
+              rows={4}
+              style={{ minHeight: 'unset' }}
+            />
+          </Field>
           <div style={styles.formRow}>
-            <input placeholder="Client name (will be redacted)" value={clientName} onChange={(e) => setClientName(e.target.value)} style={styles.input} />
+            <div style={{ flex: '1 1 260px' }}>
+              <Field label="Client name (optional)" htmlFor="ai-client" hint="Redacted from the prompt before it leaves the platform.">
+                <TextInput value={clientName} onChange={(e) => setClientName(e.target.value)} />
+              </Field>
+            </div>
             <label style={styles.checkboxLabel}>
               <input type="checkbox" checked={forceLocal} onChange={(e) => setForceLocal(e.target.checked)} />
               Force local processing (no external model)
             </label>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-            <button onClick={queryAI} style={styles.button}>Query AI</button>
-            <button onClick={doSanitize} style={styles.buttonGhostLight}>Preview Sanitization</button>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+            <Button onClick={queryAI} loading={busy} disabled={!prompt.trim()}>Query AI</Button>
+            <Button variant="secondary" onClick={doSanitize} disabled={!prompt.trim()}>Preview sanitization</Button>
           </div>
         </div>
 
@@ -998,41 +1309,73 @@ function AdminSection({ ctx }: { ctx: any }) {
     const [mintedKey, setMintedKey] = useState<string | null>(null)
     const [showCreate, setShowCreate] = useState(false)
     const [selectedUserId, setSelectedUserId] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [creatingKey, setCreatingKey] = useState(false)
+    const [pendingRevoke, setPendingRevoke] = useState<any>(null)
 
-    const loadUsers = () => api('/admin/users').then((data: any) => setUsers(Array.isArray(data) ? data : []))
-    const loadKeys = () => api('/admin/api-keys').then((data: any) => setApiKeys(Array.isArray(data) ? data : []))
+    const loadUsers = async () => {
+      const data = await api('/admin/users')
+      setUsers(Array.isArray(data) ? data : [])
+    }
+    const loadKeys = async () => {
+      const data = await api('/admin/api-keys')
+      setApiKeys(Array.isArray(data) ? data : [])
+    }
 
     useEffect(() => {
-      loadUsers()
-      loadKeys()
+      Promise.all([loadUsers(), loadKeys()])
+        .catch((e: any) => notify(e.message || 'Could not load admin data', 'error'))
+        .finally(() => setLoading(false))
     }, [token])
 
     const changeRole = async (userId: number, role: string) => {
-      await api(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) })
-      loadUsers()
-      notify('User role updated')
+      try {
+        await api(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) })
+        await loadUsers()
+        notify('User role updated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the role', 'error')
+      }
     }
 
     const toggleActive = async (u: any) => {
-      await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !u.is_active }) })
-      loadUsers()
-      notify(u.is_active ? 'User deactivated' : 'User reactivated')
+      try {
+        await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !u.is_active }) })
+        await loadUsers()
+        notify(u.is_active ? 'User deactivated' : 'User reactivated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the user', 'error')
+      }
     }
 
     const createKey = async (e: any) => {
       e.preventDefault()
       if (!newKeyName.trim()) return
-      const created = await api('/admin/api-keys', { method: 'POST', body: JSON.stringify({ name: newKeyName }) })
-      setMintedKey(created.api_key || null)
-      setNewKeyName('')
-      loadKeys()
-      notify('API key created: copy it now, it will not be shown again')
+      setCreatingKey(true)
+      try {
+        const created = await api('/admin/api-keys', { method: 'POST', body: JSON.stringify({ name: newKeyName }) })
+        setMintedKey(created.api_key || null)
+        setNewKeyName('')
+        await loadKeys()
+        notify('API key created. Copy it now, it will not be shown again.', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not create the API key', 'error')
+      } finally {
+        setCreatingKey(false)
+      }
     }
 
-    const revokeKey = async (id: number) => {
-      await api(`/admin/api-keys/${id}`, { method: 'DELETE' })
-      loadKeys()
-      notify('API key revoked')
+    const confirmRevoke = async () => {
+      const key = pendingRevoke
+      setPendingRevoke(null)
+      if (!key) return
+      try {
+        await api(`/admin/api-keys/${key.id}`, { method: 'DELETE' })
+        await loadKeys()
+        notify('API key revoked', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not revoke the API key', 'error')
+      }
     }
 
     return (
@@ -1042,6 +1385,7 @@ function AdminSection({ ctx }: { ctx: any }) {
 
         <SplitPanel
           title="Users"
+          loading={loading}
           items={users}
           selectedId={selectedUserId}
           onSelect={(u) => setSelectedUserId(u.id)}
@@ -1061,17 +1405,24 @@ function AdminSection({ ctx }: { ctx: any }) {
               <div style={styles.detailSub}>{u.full_name || '-'}</div>
               <div style={styles.detailLabel}>Role</div>
               <select
+                aria-label={`Role for ${u.email}`}
                 value={u.role}
                 onChange={(e) => changeRole(u.id, e.target.value)}
-                style={{ ...styles.input, background: 'rgba(255,255,255,0.06)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.14)' }}
+                style={{ ...styles.input, background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
               >
                 <option value="admin">Admin</option>
                 <option value="analyst">Analyst</option>
                 <option value="client">Client</option>
               </select>
-              <button onClick={() => toggleActive(u)} style={{ ...styles.darkActionBtn, marginTop: '1rem' }}>
-                {u.is_active ? 'Disable' : 'Enable'}
+              <div style={styles.detailLabel}>Account access</div>
+              <button type="button" onClick={() => toggleActive(u)} style={styles.darkActionBtn}>
+                {u.is_active ? 'Disable account' : 'Enable account'}
               </button>
+              <p style={{ ...styles.listRowSub, marginTop: '0.6rem' }}>
+                {u.is_active
+                  ? 'Disabling immediately blocks sign-in and API access for this user.'
+                  : 'This account cannot sign in until it is enabled again.'}
+              </p>
             </>
           )}
         />
@@ -1079,32 +1430,42 @@ function AdminSection({ ctx }: { ctx: any }) {
         <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
           <div style={styles.panelHeader}>
             <h3 style={styles.panelTitle}>API Keys</h3>
-            <button onClick={() => { setMintedKey(null); setShowCreate(true) }} style={styles.darkActionBtn}>+ Create Key</button>
+            <button type="button" onClick={() => { setMintedKey(null); setShowCreate(true) }} style={styles.darkActionBtn}>+ Create key</button>
           </div>
-          <p style={{ ...styles.hint, padding: '0 1.25rem', color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ ...styles.hint, padding: '0 1.25rem', color: 'rgba(255,255,255,0.68)' }}>
             Keys authenticate programmatic access via the <code>X-API-Key</code> header, scoped to the admin account that minted them.
           </p>
 
           {showCreate && (
-            <Modal title="Create API Key" onClose={() => setShowCreate(false)}>
+            <Modal title="Create API key" onClose={() => setShowCreate(false)}>
               {mintedKey ? (
                 <>
                   <div style={styles.codeBlock}>
                     {mintedKey}
                     <div style={{ color: '#fcd34d', marginTop: '0.5rem', fontFamily: 'inherit' }}>Copy this now. It will not be shown again.</div>
                   </div>
-                  <button onClick={() => setShowCreate(false)} style={{ ...styles.button, marginTop: '1rem' }}>Done</button>
+                  <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <Button
+                      onClick={() => { navigator.clipboard?.writeText(mintedKey); notify('API key copied to clipboard', 'success') }}
+                    >
+                      Copy key
+                    </Button>
+                    <Button variant="secondary" onClick={() => setShowCreate(false)}>Done</Button>
+                  </div>
                 </>
               ) : (
-                <form onSubmit={createKey} style={styles.form}>
-                  <input placeholder="Key name (e.g. ci-pipeline)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} style={styles.input} autoFocus />
-                  <button type="submit" style={styles.button}>Create Key</button>
+                <form onSubmit={createKey}>
+                  <Field label="Key name" htmlFor="key-name" tone="dark" required hint="Something recognisable, like ci-pipeline">
+                    <TextInput value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} autoFocus />
+                  </Field>
+                  <Button type="submit" loading={creatingKey} disabled={!newKeyName.trim()}>Create key</Button>
                 </form>
               )}
             </Modal>
           )}
 
           <div style={{ padding: '0 1.25rem 1.25rem' }}>
+            {apiKeys.length === 0 && <div style={styles.listRowSub}>No API keys yet.</div>}
             {apiKeys.map((k: any) => (
               <div key={k.id} style={styles.auditRow}>
                 <div>
@@ -1113,12 +1474,27 @@ function AdminSection({ ctx }: { ctx: any }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <Badge tone={k.is_active ? 'success' : 'neutral'}>{k.is_active ? 'Active' : 'Revoked'}</Badge>
-                  {k.is_active && <button onClick={() => revokeKey(k.id)} style={styles.buttonSmall}>Revoke</button>}
+                  {k.is_active && (
+                    <button type="button" onClick={() => setPendingRevoke(k)} style={styles.buttonSmall}>Revoke</button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
+
+        <ConfirmDialog
+          open={Boolean(pendingRevoke)}
+          title="Revoke this API key?"
+          description={
+            pendingRevoke
+              ? `"${pendingRevoke.name}" will stop working immediately. Any integration using it will fail until a new key is issued.`
+              : ''
+          }
+          confirmLabel="Revoke key"
+          onConfirm={confirmRevoke}
+          onCancel={() => setPendingRevoke(null)}
+        />
       </div>
     )
   }
@@ -1131,50 +1507,88 @@ function MonitorsSection({ ctx }: { ctx: any }) {
     const [clientsForMonitor, setClientsForMonitor] = useState<any[]>([])
     const [selectedId, setSelectedId] = useState<any>(null)
     const [monitorAlerts, setMonitorAlerts] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
+    const [pendingDelete, setPendingDelete] = useState<any>(null)
 
     useEffect(() => {
-      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
-      api('/clients').then((data: any) => setClientsForMonitor(Array.isArray(data) ? data : []))
+      Promise.all([api('/monitors'), api('/clients')])
+        .then(([monitorsData, clientsData]) => {
+          setMonitors(Array.isArray(monitorsData) ? monitorsData : [])
+          setClientsForMonitor(Array.isArray(clientsData) ? clientsData : [])
+        })
+        .catch((e: any) => notify(e.message || 'Could not load monitors', 'error'))
+        .finally(() => setLoading(false))
     }, [token])
+
+    const refreshMonitors = async () => {
+      try {
+        const data = await api('/monitors')
+        setMonitors(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not refresh monitors', 'error')
+      }
+    }
 
     const createMonitor = async (e: any) => {
       e.preventDefault()
-      await api('/monitors', {
-        method: 'POST',
-        body: JSON.stringify({ ...newMonitor, client_id: parseInt(newMonitor.client_id) }),
-      })
-      setNewMonitor({ target: '', monitor_type: 'access_anomaly', client_id: '' })
-      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
-      notify('Monitor created')
+      setSubmitting(true)
+      try {
+        await api('/monitors', {
+          method: 'POST',
+          body: JSON.stringify({ ...newMonitor, client_id: parseInt(newMonitor.client_id) }),
+        })
+        setNewMonitor({ target: '', monitor_type: 'access_anomaly', client_id: '' })
+        notify('Monitor created', 'success')
+        refreshMonitors()
+      } catch (e: any) {
+        notify(e.message || 'Could not create the monitor', 'error')
+      } finally {
+        setSubmitting(false)
+      }
     }
 
     const runCheck = async (id: number) => {
-      const res = await api(`/monitors/${id}/check`, { method: 'POST' })
-      notify(`Monitor check: ${res.alerts_created || 0} alert(s) created`)
-      api(`/monitors/${id}/alerts`).then((data: any) => setMonitorAlerts(Array.isArray(data) ? data : []))
-      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
+      try {
+        const res = await api(`/monitors/${id}/check`, { method: 'POST' })
+        notify(`Monitor check complete: ${res.alerts_created || 0} alert(s) created`, 'success')
+        const alertsData = await api(`/monitors/${id}/alerts`)
+        setMonitorAlerts(Array.isArray(alertsData) ? alertsData : [])
+        refreshMonitors()
+      } catch (e: any) {
+        notify(e.message || 'The monitor check failed', 'error')
+      }
     }
-
-    const refreshMonitors = () =>
-      api('/monitors').then((data: any) => setMonitors(Array.isArray(data) ? data : []))
 
     const toggleActive = async (m: any) => {
-      await api(`/monitors/${m.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active: !m.is_active }),
-      })
-      notify(m.is_active ? 'Monitor paused' : 'Monitor resumed')
-      refreshMonitors()
+      try {
+        await api(`/monitors/${m.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_active: !m.is_active }),
+        })
+        notify(m.is_active ? 'Monitor paused' : 'Monitor resumed', 'success')
+        refreshMonitors()
+      } catch (e: any) {
+        notify(e.message || 'Could not update the monitor', 'error')
+      }
     }
 
-    const removeMonitor = async (m: any) => {
-      if (!window.confirm(`Delete monitor for ${m.target}? Its alerts will also be removed.`)) return
-      await api(`/monitors/${m.id}`, { method: 'DELETE' })
-      setSelectedId(null)
-      setMonitorAlerts([])
-      notify('Monitor deleted')
-      refreshMonitors()
+    const confirmDelete = async () => {
+      const m = pendingDelete
+      setPendingDelete(null)
+      if (!m) return
+      try {
+        await api(`/monitors/${m.id}`, { method: 'DELETE' })
+        setSelectedId(null)
+        setMonitorAlerts([])
+        notify('Monitor deleted', 'success')
+        refreshMonitors()
+      } catch (e: any) {
+        notify(e.message || 'Could not delete the monitor', 'error')
+      }
     }
+
+    const canSubmit = Boolean(newMonitor.client_id && newMonitor.target.trim())
 
     return (
       <div style={styles.section}>
@@ -1186,41 +1600,54 @@ function MonitorsSection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Create Monitor</h3>
-          <form onSubmit={createMonitor} style={styles.form}>
-            <select
-              value={newMonitor.client_id}
-              onChange={(e) => setNewMonitor({ ...newMonitor, client_id: e.target.value })}
-              style={styles.input}
-            >
-              <option value="">Select client</option>
-              {clientsForMonitor.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select
-              value={newMonitor.monitor_type}
-              onChange={(e) => setNewMonitor({ ...newMonitor, monitor_type: e.target.value })}
-              style={styles.input}
-            >
-              <option value="access_anomaly">Access Anomaly Detection</option>
-              <option value="config_drift">Configuration Drift</option>
-              <option value="leaked_cred">Leaked Credentials</option>
-              <option value="policy_violation">Policy Violation</option>
-            </select>
-            <input
-              placeholder="Target domain or URL"
-              value={newMonitor.target}
-              onChange={(e) => setNewMonitor({ ...newMonitor, target: e.target.value })}
-              style={styles.input}
-            />
-            <button type="submit" style={styles.button}>Create Monitor</button>
+          <form onSubmit={createMonitor}>
+            <Field label="Client" htmlFor="monitor-client" required>
+              <Select
+                value={newMonitor.client_id}
+                onChange={(e) => setNewMonitor({ ...newMonitor, client_id: e.target.value })}
+              >
+                <option value="">Select a client</option>
+                {clientsForMonitor.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="What to watch" htmlFor="monitor-type">
+              <Select
+                value={newMonitor.monitor_type}
+                onChange={(e) => setNewMonitor({ ...newMonitor, monitor_type: e.target.value })}
+              >
+                <option value="access_anomaly">Access anomaly detection</option>
+                <option value="config_drift">Configuration drift</option>
+                <option value="leaked_cred">Leaked credentials</option>
+                <option value="policy_violation">Policy violation</option>
+              </Select>
+            </Field>
+            <Field label="Target" htmlFor="monitor-target" required hint="Domain or URL, for example bank.sn">
+              <TextInput
+                value={newMonitor.target}
+                onChange={(e) => setNewMonitor({ ...newMonitor, target: e.target.value })}
+              />
+            </Field>
+            <Button type="submit" loading={submitting} disabled={!canSubmit}>Create monitor</Button>
           </form>
         </div>
 
         <SplitPanel
           title="Monitors"
+          loading={loading}
           items={monitors}
           selectedId={selectedId}
-          onSelect={(m) => { setSelectedId(m.id); api(`/monitors/${m.id}/alerts`).then((d: any) => setMonitorAlerts(Array.isArray(d) ? d : [])) }}
+          onSelect={async (m) => {
+            setSelectedId(m.id)
+            setMonitorAlerts([])
+            try {
+              const d = await api(`/monitors/${m.id}/alerts`)
+              setMonitorAlerts(Array.isArray(d) ? d : [])
+            } catch (e: any) {
+              notify(e.message || 'Could not load monitor alerts', 'error')
+            }
+          }}
           emptyLabel="No monitors yet."
+          emptyHint="Create a monitor to watch for drift, leaks, and anomalous access."
           renderRow={(m) => (
             <>
               <div style={styles.listRowMain}>
@@ -1235,11 +1662,11 @@ function MonitorsSection({ ctx }: { ctx: any }) {
               <div style={styles.detailHeading}>{m.target}</div>
               <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
               <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run Check Now</button>
-                <button onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
+                <button type="button" onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run check now</button>
+                <button type="button" onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
                   {m.is_active ? 'Pause' : 'Resume'}
                 </button>
-                <button onClick={() => removeMonitor(m)} style={styles.darkActionBtn}>Delete</button>
+                <button type="button" onClick={() => setPendingDelete(m)} style={styles.darkActionBtn}>Delete</button>
               </div>
               {monitorAlerts.length > 0 && (
                 <>
@@ -1255,6 +1682,19 @@ function MonitorsSection({ ctx }: { ctx: any }) {
             </>
           )}
         />
+
+        <ConfirmDialog
+          open={Boolean(pendingDelete)}
+          title="Delete this monitor?"
+          description={
+            pendingDelete
+              ? `The monitor for ${pendingDelete.target} and its alerts will be permanently removed. This cannot be undone.`
+              : ''
+          }
+          confirmLabel="Delete monitor"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
       </div>
     )
 }
@@ -1267,24 +1707,41 @@ function AlertsSection({ ctx }: { ctx: any }) {
     const [alerts, setAlerts] = useState<any[]>([])
     const [statusFilter, setStatusFilter] = useState('')
     const [severityFilter, setSeverityFilter] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [busyId, setBusyId] = useState<any>(null)
 
-    const load = () => {
+    const load = async () => {
+      setLoading(true)
       const params = new URLSearchParams()
       if (statusFilter) params.set('status', statusFilter)
       if (severityFilter) params.set('severity', severityFilter)
       const qs = params.toString()
-      api(`/alerts${qs ? `?${qs}` : ''}`).then((data: any) => setAlerts(Array.isArray(data) ? data : []))
+      try {
+        const data = await api(`/alerts${qs ? `?${qs}` : ''}`)
+        setAlerts(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load alerts', 'error')
+      } finally {
+        setLoading(false)
+      }
     }
 
-    useEffect(load, [token, statusFilter, severityFilter])
+    useEffect(() => { load() }, [token, statusFilter, severityFilter])
 
     const setStatus = async (alert: any, status: string) => {
-      await api(`/alerts/${alert.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      })
-      notify(`Alert marked ${status.replace('_', ' ')}`)
-      load()
+      setBusyId(alert.id)
+      try {
+        await api(`/alerts/${alert.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        })
+        notify(`Alert marked ${status.replace('_', ' ')}`, 'success')
+        await load()
+      } catch (e: any) {
+        notify(e.message || 'Could not update the alert', 'error')
+      } finally {
+        setBusyId(null)
+      }
     }
 
     const openCount = alerts.filter((a: any) => a.status === 'open').length
@@ -1293,18 +1750,30 @@ function AlertsSection({ ctx }: { ctx: any }) {
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Monitoring Alerts</h1>
         <p style={styles.hint}>
-          Alerts generated by continuous monitoring agents. {openCount} open alert(s) need review.
+          {openCount > 0
+            ? `${openCount} open alert${openCount === 1 ? '' : 's'} need review. Acknowledge to claim one, resolve when fixed.`
+            : 'No open alerts right now. Acknowledge and resolve each alert as it arrives.'}
         </p>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...styles.input, maxWidth: 200 }}>
+          <select
+            aria-label="Filter alerts by status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...styles.input, maxWidth: 200 }}
+          >
             <option value="">All statuses</option>
             <option value="open">Open</option>
             <option value="acknowledged">Acknowledged</option>
             <option value="resolved">Resolved</option>
             <option value="false_positive">False positive</option>
           </select>
-          <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} style={{ ...styles.input, maxWidth: 200 }}>
+          <select
+            aria-label="Filter alerts by severity"
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            style={{ ...styles.input, maxWidth: 200 }}
+          >
             <option value="">All severities</option>
             <option value="critical">Critical</option>
             <option value="high">High</option>
@@ -1316,36 +1785,56 @@ function AlertsSection({ ctx }: { ctx: any }) {
         <div style={styles.lightCard}>
           <div style={styles.tableWrap}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+              <caption className="sr-only">Monitoring alerts with severity, status, and time detected</caption>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Time</th>
-                <th style={{ padding: '0.75rem 0' }}></th>
+                <th scope="col" style={styles.th}>Alert</th>
+                <th scope="col" style={styles.th}>Severity</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Detected</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {alerts.length === 0 && (
+              {loading && (
+                <tr><td colSpan={5} style={styles.tdEmpty} role="status">Loading alerts…</td></tr>
+              )}
+              {!loading && alerts.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No alerts match these filters.</td>
+                  <td colSpan={5} style={styles.tdEmpty}>
+                    {statusFilter || severityFilter ? 'No alerts match these filters.' : 'No alerts yet. Monitoring agents will file them here.'}
+                  </td>
                 </tr>
               )}
               {alerts.map((a: any) => (
                 <tr key={a.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                  <td style={{ padding: '0.75rem 0' }}>
+                  <td style={styles.td}>
                     <div>{a.title}</div>
-                    {a.description && <div style={{ fontSize: '0.78rem', color: 'rgba(17,17,19,0.5)' }}>{a.description}</div>}
+                    {a.description && <div style={{ fontSize: '0.78rem', color: 'rgba(17,17,19,0.62)' }}>{a.description}</div>}
                   </td>
-                  <td style={{ padding: '0.75rem 0' }}><Badge tone={severityTone(a.severity)}>{a.severity}</Badge></td>
-                  <td style={{ padding: '0.75rem 0' }}>{a.status.replace('_', ' ')}</td>
-                  <td style={{ padding: '0.75rem 0', fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)' }}>{new Date(a.created_at).toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td style={styles.td}><Badge tone={severityTone(a.severity)}>{a.severity}</Badge></td>
+                  <td style={styles.td}>{a.status.replace('_', ' ')}</td>
+                  <td style={{ ...styles.td, fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {a.status === 'open' && (
-                      <button onClick={() => setStatus(a, 'acknowledged')} style={styles.buttonGhostLight}>Acknowledge</button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus(a, 'acknowledged')}
+                        disabled={busyId === a.id}
+                        style={styles.buttonGhostLight}
+                      >
+                        Acknowledge
+                      </button>
                     )}
                     {a.status !== 'resolved' && (
-                      <button onClick={() => setStatus(a, 'resolved')} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Resolve</button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus(a, 'resolved')}
+                        disabled={busyId === a.id}
+                        style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}
+                      >
+                        Resolve
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -1366,50 +1855,84 @@ function SchedulesSection({ ctx }: { ctx: any }) {
     const [schedules, setSchedules] = useState<any[]>([])
     const [clientsForSchedule, setClientsForSchedule] = useState<any[]>([])
     const [newSchedule, setNewSchedule] = useState({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
+    const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
+    const [pendingDelete, setPendingDelete] = useState<any>(null)
 
-    const load = () =>
-      api('/scan-schedules').then((data: any) => setSchedules(Array.isArray(data) ? data : []))
+    const load = async () => {
+      try {
+        const data = await api('/scan-schedules')
+        setSchedules(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load schedules', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
 
     useEffect(() => {
       load()
-      api('/clients').then((data: any) => setClientsForSchedule(Array.isArray(data) ? data : []))
+      api('/clients')
+        .then((data: any) => setClientsForSchedule(Array.isArray(data) ? data : []))
+        .catch((e: any) => notify(e.message || 'Could not load clients', 'error'))
     }, [token])
 
     const createSchedule = async (e: any) => {
       e.preventDefault()
-      await api('/scan-schedules', {
-        method: 'POST',
-        body: JSON.stringify({
-          client_id: parseInt(newSchedule.client_id),
-          scan_type: newSchedule.scan_type,
-          interval_minutes: parseInt(newSchedule.interval_minutes),
-        }),
-      })
-      setNewSchedule({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
-      notify('Scan schedule created')
-      load()
+      setSubmitting(true)
+      try {
+        await api('/scan-schedules', {
+          method: 'POST',
+          body: JSON.stringify({
+            client_id: parseInt(newSchedule.client_id),
+            scan_type: newSchedule.scan_type,
+            interval_minutes: parseInt(newSchedule.interval_minutes),
+          }),
+        })
+        setNewSchedule({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
+        notify('Scan schedule created', 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not create the schedule', 'error')
+      } finally {
+        setSubmitting(false)
+      }
     }
 
     const toggle = async (s: any) => {
-      await api(`/scan-schedules/${s.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active: !s.is_active }),
-      })
-      notify(s.is_active ? 'Schedule paused' : 'Schedule resumed')
-      load()
+      try {
+        await api(`/scan-schedules/${s.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_active: !s.is_active }),
+        })
+        notify(s.is_active ? 'Schedule paused' : 'Schedule resumed', 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not update the schedule', 'error')
+      }
     }
 
     const runNow = async (s: any) => {
-      const res = await api(`/scan-schedules/${s.id}/run`, { method: 'POST' })
-      notify(`Scan #${res.scan_id} started and completed`)
-      load()
+      try {
+        const res = await api(`/scan-schedules/${s.id}/run`, { method: 'POST' })
+        notify(`Scan #${res.scan_id} started and completed`, 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not run the schedule', 'error')
+      }
     }
 
-    const remove = async (s: any) => {
-      if (!window.confirm('Delete this scan schedule?')) return
-      await api(`/scan-schedules/${s.id}`, { method: 'DELETE' })
-      notify('Schedule deleted')
-      load()
+    const confirmDelete = async () => {
+      const s = pendingDelete
+      setPendingDelete(null)
+      if (!s) return
+      try {
+        await api(`/scan-schedules/${s.id}`, { method: 'DELETE' })
+        notify('Schedule deleted', 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not delete the schedule', 'error')
+      }
     }
 
     const humanInterval = (minutes: number) => {
@@ -1428,71 +1951,76 @@ function SchedulesSection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Create Schedule</h3>
-          <form onSubmit={createSchedule} style={styles.form}>
-            <select
-              value={newSchedule.client_id}
-              onChange={(e) => setNewSchedule({ ...newSchedule, client_id: e.target.value })}
-              style={styles.input}
-            >
-              <option value="">Select client</option>
-              {clientsForSchedule.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select
-              value={newSchedule.scan_type}
-              onChange={(e) => setNewSchedule({ ...newSchedule, scan_type: e.target.value })}
-              style={styles.input}
-            >
-              <option value="vulnerability">Vulnerability</option>
-              <option value="full">Full assessment</option>
-              <option value="web">Web application</option>
-            </select>
-            <select
-              value={newSchedule.interval_minutes}
-              onChange={(e) => setNewSchedule({ ...newSchedule, interval_minutes: e.target.value })}
-              style={styles.input}
-            >
-              <option value="60">Every hour</option>
-              <option value="360">Every 6 hours</option>
-              <option value="1440">Daily</option>
-              <option value="10080">Weekly</option>
-              <option value="43200">Monthly</option>
-            </select>
-            <button type="submit" style={styles.button}>Create Schedule</button>
+          <form onSubmit={createSchedule}>
+            <Field label="Client" htmlFor="schedule-client" required>
+              <Select
+                value={newSchedule.client_id}
+                onChange={(e) => setNewSchedule({ ...newSchedule, client_id: e.target.value })}
+              >
+                <option value="">Select a client</option>
+                {clientsForSchedule.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Assessment type" htmlFor="schedule-type">
+              <Select
+                value={newSchedule.scan_type}
+                onChange={(e) => setNewSchedule({ ...newSchedule, scan_type: e.target.value })}
+              >
+                <option value="vulnerability">Vulnerability</option>
+                <option value="full">Full assessment</option>
+                <option value="web">Web application</option>
+              </Select>
+            </Field>
+            <Field label="Frequency" htmlFor="schedule-interval">
+              <Select
+                value={newSchedule.interval_minutes}
+                onChange={(e) => setNewSchedule({ ...newSchedule, interval_minutes: e.target.value })}
+              >
+                <option value="60">Every hour</option>
+                <option value="360">Every 6 hours</option>
+                <option value="1440">Daily</option>
+                <option value="10080">Weekly</option>
+                <option value="43200">Monthly</option>
+              </Select>
+            </Field>
+            <Button type="submit" loading={submitting} disabled={!newSchedule.client_id}>Create schedule</Button>
           </form>
         </div>
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Schedules</h3>
           <div style={styles.tableWrap}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+              <caption className="sr-only">Recurring scan schedules with their next run time</caption>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Every</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Next run</th>
-                <th style={{ padding: '0.75rem 0' }}></th>
+                <th scope="col" style={styles.th}>Client</th>
+                <th scope="col" style={styles.th}>Type</th>
+                <th scope="col" style={styles.th}>Every</th>
+                <th scope="col" style={styles.th}>Next run</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {schedules.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '2rem', color: 'rgba(17,17,19,0.45)', textAlign: 'center' }}>No schedules yet.</td>
-                </tr>
+              {loading && (
+                <tr><td colSpan={5} style={styles.tdEmpty} role="status">Loading schedules…</td></tr>
+              )}
+              {!loading && schedules.length === 0 && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>No schedules yet. Create one above to run scans automatically.</td></tr>
               )}
               {schedules.map((s: any) => (
                 <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                  <td style={{ padding: '0.75rem 0' }}>{s.client?.name || s.client_id}</td>
-                  <td style={{ padding: '0.75rem 0' }}>{s.scan_type}</td>
-                  <td style={{ padding: '0.75rem 0' }}>{humanInterval(s.interval_minutes)}</td>
-                  <td style={{ padding: '0.75rem 0', fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)' }}>
+                  <td style={styles.td}>{s.client?.name || s.client_id}</td>
+                  <td style={styles.td}>{s.scan_type}</td>
+                  <td style={styles.td}>{humanInterval(s.interval_minutes)}</td>
+                  <td style={{ ...styles.td, fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)' }}>
                     {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
                   </td>
-                  <td style={{ padding: '0.75rem 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <Badge tone={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Paused'}</Badge>
-                    <button onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
-                    <button onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
-                    <button onClick={() => remove(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
+                    <button type="button" onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
+                    <button type="button" onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
+                    <button type="button" onClick={() => setPendingDelete(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -1500,6 +2028,19 @@ function SchedulesSection({ ctx }: { ctx: any }) {
           </table>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={Boolean(pendingDelete)}
+          title="Delete this schedule?"
+          description={
+            pendingDelete
+              ? `Scans for ${pendingDelete.client?.name || `client #${pendingDelete.client_id}`} will stop running automatically. Existing findings are kept.`
+              : ''
+          }
+          confirmLabel="Delete schedule"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
       </div>
     )
 }
@@ -1513,28 +2054,57 @@ function CodeScansSection({ ctx }: { ctx: any }) {
     const [clientsForCode, setClientsForCode] = useState<any[]>([])
     const [selectedId, setSelectedId] = useState<any>(null)
     const [issues, setIssues] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [issuesLoading, setIssuesLoading] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
 
-    useEffect(() => {
-      api('/code-scans').then((data: any) => setCodeScans(Array.isArray(data) ? data : []))
-      api('/clients').then((data: any) => setClientsForCode(Array.isArray(data) ? data : []))
-    }, [token])
-
-    useEffect(() => {
-      if (selectedId) {
-        api(`/code-scans/${selectedId}/issues`).then((data: any) => setIssues(Array.isArray(data) ? data : []))
+    const load = async () => {
+      try {
+        const [scansData, clientsData] = await Promise.all([api('/code-scans'), api('/clients')])
+        setCodeScans(Array.isArray(scansData) ? scansData : [])
+        setClientsForCode(Array.isArray(clientsData) ? clientsData : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load code scans', 'error')
+      } finally {
+        setLoading(false)
       }
-    }, [selectedId])
+    }
+
+    useEffect(() => { load() }, [token])
+
+    const openIssues = async (scan: any) => {
+      setSelectedId(scan.id)
+      setIssues([])
+      setIssuesLoading(true)
+      try {
+        const data = await api(`/code-scans/${scan.id}/issues`)
+        setIssues(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load issues', 'error')
+      } finally {
+        setIssuesLoading(false)
+      }
+    }
 
     const createCodeScan = async (e: any) => {
       e.preventDefault()
-      await api('/code-scans', {
-        method: 'POST',
-        body: JSON.stringify({ ...newCodeScan, client_id: parseInt(newCodeScan.client_id) }),
-      })
-      setNewCodeScan({ client_id: '', repository_url: '', branch: 'main' })
-      api('/code-scans').then((data: any) => setCodeScans(Array.isArray(data) ? data : []))
-      notify('Code scan started')
+      setSubmitting(true)
+      try {
+        await api('/code-scans', {
+          method: 'POST',
+          body: JSON.stringify({ ...newCodeScan, client_id: parseInt(newCodeScan.client_id) }),
+        })
+        setNewCodeScan({ client_id: '', repository_url: '', branch: 'main' })
+        notify('Code scan started', 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not start the code scan', 'error')
+      } finally {
+        setSubmitting(false)
+      }
     }
+
+    const canSubmit = Boolean(newCodeScan.client_id && newCodeScan.repository_url.trim())
 
     return (
       <div style={styles.section}>
@@ -1546,28 +2116,29 @@ function CodeScansSection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Scan Code</h3>
-          <form onSubmit={createCodeScan} style={styles.form}>
-            <select
-              value={newCodeScan.client_id}
-              onChange={(e) => setNewCodeScan({ ...newCodeScan, client_id: e.target.value })}
-              style={styles.input}
-            >
-              <option value="">Select client</option>
-              {clientsForCode.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <input
-              placeholder="Repository URL or directory path"
-              value={newCodeScan.repository_url}
-              onChange={(e) => setNewCodeScan({ ...newCodeScan, repository_url: e.target.value })}
-              style={styles.input}
-            />
-            <input
-              placeholder="Branch"
-              value={newCodeScan.branch}
-              onChange={(e) => setNewCodeScan({ ...newCodeScan, branch: e.target.value })}
-              style={styles.input}
-            />
-            <button type="submit" style={styles.button}>Scan Code</button>
+          <form onSubmit={createCodeScan}>
+            <Field label="Client" htmlFor="code-client" required>
+              <Select
+                value={newCodeScan.client_id}
+                onChange={(e) => setNewCodeScan({ ...newCodeScan, client_id: e.target.value })}
+              >
+                <option value="">Select a client</option>
+                {clientsForCode.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Repository URL or directory" htmlFor="code-repo" required hint="For example github.com/sahel-bank/mobile-api">
+              <TextInput
+                value={newCodeScan.repository_url}
+                onChange={(e) => setNewCodeScan({ ...newCodeScan, repository_url: e.target.value })}
+              />
+            </Field>
+            <Field label="Branch" htmlFor="code-branch">
+              <TextInput
+                value={newCodeScan.branch}
+                onChange={(e) => setNewCodeScan({ ...newCodeScan, branch: e.target.value })}
+              />
+            </Field>
+            <Button type="submit" loading={submitting} disabled={!canSubmit}>Scan code</Button>
           </form>
         </div>
 
@@ -1575,21 +2146,34 @@ function CodeScansSection({ ctx }: { ctx: any }) {
           <h3 style={styles.h3}>Code Scans</h3>
           <div style={styles.tableWrap}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+              <caption className="sr-only">Code scans and the issues found in each</caption>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Repository</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                <th style={{ padding: '0.75rem 0', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(17,17,19,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issues</th>
+                <th scope="col" style={styles.th}>Repository</th>
+                <th scope="col" style={styles.th}>Branch</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Issues</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
+              {loading && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>Loading code scans…</td></tr>
+              )}
+              {!loading && codeScans.length === 0 && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>No code scans yet. Scan a repository above to get started.</td></tr>
+              )}
               {codeScans.map((s: any) => (
                 <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                  <td style={{ padding: '0.75rem 0' }}>{s.repository_url || '-'}</td>
-                  <td style={{ padding: '0.75rem 0' }}>{s.branch}</td>
-                  <td style={{ padding: '0.75rem 0' }}>{s.status}</td>
-                  <td style={{ padding: '0.75rem 0' }}>{s.issues_found}</td>
+                  <td style={styles.td}>{s.repository_url || '-'}</td>
+                  <td style={styles.td}>{s.branch}</td>
+                  <td style={styles.td}><Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge></td>
+                  <td style={styles.td}>{s.issues_found}</td>
+                  <td style={{ ...styles.td, textAlign: 'right' }}>
+                    <button type="button" onClick={() => openIssues(s)} style={styles.buttonGhostLight}>
+                      View issues
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1600,13 +2184,14 @@ function CodeScansSection({ ctx }: { ctx: any }) {
         {selectedId && (
           <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
             <h3 style={styles.h3}>Issues</h3>
-            {issues.length === 0 && <p style={styles.hint}>No issues found.</p>}
+            {issuesLoading && <p style={styles.mutedText} role="status">Loading issues…</p>}
+            {!issuesLoading && issues.length === 0 && <p style={styles.mutedText}>No issues found in this scan.</p>}
             {issues.map((i: any) => (
-              <div key={i.id} style={styles.auditRow}>
+              <div key={i.id} style={styles.auditRowLight}>
                 <div style={{ flex: 1 }}>
                   <strong>{i.file_path}</strong>:{i.line_number}
                   <br />
-                  <span style={styles.listRowSub}>{i.issue_type}</span>
+                  <span style={styles.mutedText}>{i.issue_type}</span>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <Badge tone={severityTone(i.severity || 'medium')}>{i.severity}</Badge>
@@ -1629,8 +2214,12 @@ function ComplianceSection({ ctx }: { ctx: any }) {
     const [clientSector, setClientSector] = useState('banking')
 
     const runSummary = async () => {
-      const res = await api(`/compliance/summary?total_findings=10&critical=2&high=3&medium=4&client_sector=${clientSector}`)
-      setSummary(res)
+      try {
+        const res = await api(`/compliance/summary?total_findings=10&critical=2&high=3&medium=4&client_sector=${clientSector}`)
+        setSummary(res)
+      } catch (e: any) {
+        notify(e.message || 'Could not build the summary', 'error')
+      }
     }
 
     const runMap = async () => {
@@ -1639,12 +2228,16 @@ function ComplianceSection({ ctx }: { ctx: any }) {
         { title: 'Hardcoded API key in source', severity: 'critical', id: 2 },
         { title: 'SSL verification disabled', severity: 'medium', id: 3 },
       ]
-      const res = await api('/compliance/map', {
-        method: 'POST',
-        body: JSON.stringify({ findings, client_sector: clientSector }),
-      })
-      setMappings(res.mappings || [])
-      notify('Compliance mapping generated')
+      try {
+        const res = await api('/compliance/map', {
+          method: 'POST',
+          body: JSON.stringify({ findings, client_sector: clientSector }),
+        })
+        setMappings(res.mappings || [])
+        notify('Compliance mapping generated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not generate the mapping', 'error')
+      }
     }
 
     return (
@@ -1658,19 +2251,17 @@ function ComplianceSection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Compliance Summary</h3>
-          <div style={styles.formRow}>
-            <select
-              value={clientSector}
-              onChange={(e) => setClientSector(e.target.value)}
-              style={styles.input}
-            >
-              <option value="banking">Banking / Mobile Money</option>
-              <option value="telecom">Telecom</option>
-              <option value="government">Government</option>
-              <option value="other">Other</option>
-            </select>
-            <button onClick={runSummary} style={styles.button}>Run Summary</button>
+          <div style={{ maxWidth: 320 }}>
+            <Field label="Client sector" htmlFor="compliance-sector">
+              <Select value={clientSector} onChange={(e) => setClientSector(e.target.value)}>
+                <option value="banking">Banking / Mobile Money</option>
+                <option value="telecom">Telecom</option>
+                <option value="government">Government</option>
+                <option value="other">Other</option>
+              </Select>
+            </Field>
           </div>
+          <Button onClick={runSummary}>Run summary</Button>
           {summary && (
             <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.04)', borderRadius: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
@@ -1678,10 +2269,10 @@ function ComplianceSection({ ctx }: { ctx: any }) {
                 <div><div style={styles.statLabel}>Reporting Required</div><div style={styles.statValue}>{summary.reporting_required ? 'Yes' : 'No'}</div></div>
                 <div><div style={styles.statLabel}>CERT Window</div><div style={styles.statValue}>{summary.cert_notification_window_hours}h</div></div>
               </div>
-              <p style={styles.listRowSub}>{summary.framework}</p>
-              <p style={styles.listRowSub}>Sector: {summary.client_sector}</p>
-              <div style={styles.detailLabel}>Next Steps</div>
-              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+              <p style={styles.mutedText}>{summary.framework}</p>
+              <p style={styles.mutedText}>Sector: {summary.client_sector}</p>
+              <div style={styles.detailLabelLight}>Next Steps</div>
+              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
                 {summary.next_steps.map((s: string) => <li key={s}>{s}</li>)}
               </ul>
             </div>
@@ -1690,15 +2281,20 @@ function ComplianceSection({ ctx }: { ctx: any }) {
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Findings → Law Mapping</h3>
-          <button onClick={runMap} style={styles.button}>Generate Mappings</button>
+          <Button variant="secondary" onClick={runMap}>Generate mappings</Button>
+          {mappings.length === 0 && (
+            <p style={{ ...styles.mutedText, marginTop: '0.75rem' }}>
+              No mapping generated yet. This maps sample findings to Senegal Cyber Law obligations.
+            </p>
+          )}
           {mappings.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
               {mappings.map((m: any) => (
-                <div key={m.law_article} style={styles.auditRow}>
+                <div key={m.law_article} style={styles.auditRowLight}>
                   <div style={{ flex: 1 }}>
                     <strong>{m.law_article}</strong>
                     <br />
-                    <span style={styles.listRowSub}>{m.obligation}</span>
+                    <span style={styles.mutedText}>{m.obligation}</span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <Badge tone={m.priority === 'immediate' ? 'danger' : m.priority === 'urgent' ? 'warning' : 'neutral'}>{m.priority}</Badge>
@@ -1726,11 +2322,15 @@ function ReportsSection({ ctx }: { ctx: any }) {
     }, [token])
 
     const generateReport = async (scanId: number) => {
-      const res = await api(`/scans/${scanId}/report`)
-      setReport(res)
-      const mdRes = await api(`/scans/${scanId}/report/markdown`)
-      setMarkdown(mdRes.markdown || '')
-      notify('Report generated')
+      try {
+        const res = await api(`/scans/${scanId}/report`)
+        setReport(res)
+        const mdRes = await api(`/scans/${scanId}/report/markdown`)
+        setMarkdown(mdRes.markdown || '')
+        notify('Report generated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not generate the report', 'error')
+      }
     }
 
     return (
@@ -1742,26 +2342,24 @@ function ReportsSection({ ctx }: { ctx: any }) {
 
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Generate Report</h3>
-          <div style={styles.formRow}>
-            <select
-              style={styles.input}
-              value={selectedScan}
-              onChange={(e: any) => setSelectedScan(e.target.value)}
-            >
-              <option value="">Select scan</option>
-              {scans.map((s: any) => (
-                <option key={s.id} value={s.id}>
-                  {s.client?.name} — {s.scan_type} ({s.status})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => { if (selectedScan) generateReport(parseInt(selectedScan)) }}
-              style={styles.button}
-            >
-              Generate
-            </button>
+          <div style={{ maxWidth: 420 }}>
+            <Field label="Scan" htmlFor="report-scan" hint={scans.length === 0 ? 'No completed scans to report on yet.' : undefined}>
+              <Select value={selectedScan} onChange={(e) => setSelectedScan(e.target.value)} disabled={scans.length === 0}>
+                <option value="">Select a scan</option>
+                {scans.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.client?.name} — {s.scan_type} ({s.status})
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
+          <Button
+            onClick={() => { if (selectedScan) generateReport(parseInt(selectedScan)) }}
+            disabled={!selectedScan}
+          >
+            Generate report
+          </Button>
         </div>
 
         {report && (
@@ -1772,18 +2370,18 @@ function ReportsSection({ ctx }: { ctx: any }) {
               <div><div style={styles.statLabel}>Rating</div><div style={styles.statValue}>{report.overall_rating}</div></div>
               <div><div style={styles.statLabel}>Total Findings</div><div style={styles.statValue}>{report.findings_count.total}</div></div>
             </div>
-            <div style={styles.detailLabel}>Executive Summary</div>
-            <p style={styles.listRowSub}>{report.executive_summary}</p>
-            <div style={styles.detailLabel}>Plain Language</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+            <div style={styles.detailLabelLight}>Executive Summary</div>
+            <p style={styles.mutedText}>{report.executive_summary}</p>
+            <div style={styles.detailLabelLight}>Plain Language</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
               {report.plain_language.map((p: string) => <li key={p}>{p}</li>)}
             </ul>
-            <div style={styles.detailLabel}>Recommendations</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+            <div style={styles.detailLabelLight}>Recommendations</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
               {report.recommendations.map((r: string) => <li key={r}>{r}</li>)}
             </ul>
-            <div style={styles.detailLabel}>Compliance Mappings</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.65)' }}>
+            <div style={styles.detailLabelLight}>Compliance Mappings</div>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
               {report.compliance_mappings.map((m: any) => (
                 <li key={m.law_article}>
                   <strong>{m.law_article}:</strong> {m.action_required}
@@ -1833,7 +2431,7 @@ const styles: any = {
     fontWeight: 700,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.3)',
+    color: 'rgba(255,255,255,0.48)',
     padding: '0.6rem 0.9rem 0.3rem',
   },
   sidebarLink: {
@@ -1859,7 +2457,7 @@ const styles: any = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700, flex: '0 0 auto',
   },
   sidebarUserEmail: { fontSize: '0.8rem', color: '#f5f5f7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  sidebarUserRole: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'capitalize' },
+  sidebarUserRole: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize' },
   sidebarSignOut: {
     width: '100%',
     background: 'rgba(220,38,38,0.12)',
@@ -1874,7 +2472,7 @@ const styles: any = {
   main: { flex: 1, padding: '2rem', maxWidth: '1180px', margin: '0 auto', width: '100%', boxSizing: 'border-box' },
   section: {},
   pageTitle: { fontSize: '1.75rem', fontWeight: '600', margin: '0 0 1.25rem', color: '#111113', letterSpacing: '-0.01em' },
-  hint: { color: 'rgba(17,17,19,0.55)', fontSize: '0.9rem', marginBottom: '1rem' },
+  hint: { color: 'rgba(17,17,19,0.68)', fontSize: '0.9rem', marginBottom: '1rem' },
 
   // Light stat tiles
   statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' },
@@ -1885,9 +2483,33 @@ const styles: any = {
     borderRadius: '18px',
     padding: '1.25rem',
   },
-  statLabel: { fontSize: '0.8rem', color: 'rgba(17,17,19,0.5)', marginBottom: '0.4rem' },
+  statCardEmphasis: {
+    borderTop: `3px solid ${ACCENT_BORDER}`,
+    boxShadow: '0 6px 24px rgba(17,17,19,0.05)',
+  },
+  statLabel: { fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)', marginBottom: '0.4rem' },
   statValue: { fontSize: '1.9rem', fontWeight: '700', color: '#111113' },
-  statHint: { fontSize: '0.78rem', color: 'rgba(17,17,19,0.45)', marginTop: '0.3rem' },
+  statHint: { fontSize: '0.78rem', color: 'rgba(17,17,19,0.58)', marginTop: '0.3rem' },
+  skeleton: {
+    height: '118px',
+    borderRadius: '18px',
+    background: 'linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.09), rgba(0,0,0,0.05))',
+    backgroundSize: '200% 100%',
+    animation: 'ultorn-sheen 1.4s ease-in-out infinite',
+  },
+  metricStrip: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: '0.75rem',
+    background: 'rgba(255,255,255,0.65)',
+    border: '1px solid rgba(0,0,0,0.06)',
+    borderRadius: '18px',
+    padding: '0.9rem 1.1rem',
+    marginBottom: '1.25rem',
+  },
+  metricItem: { display: 'flex', flexDirection: 'column', gap: '0.1rem' },
+  metricValue: { fontSize: '1.15rem', fontWeight: 700, color: '#111113' },
+  metricLabel: { fontSize: '0.75rem', color: 'rgba(17,17,19,0.6)' },
 
   // Two-up dark panels on the dashboard
   split: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' },
@@ -1903,7 +2525,7 @@ const styles: any = {
     margin: '1rem 0',
   },
   h3: { fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.6rem', color: '#111113' },
-  detailLabel: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginTop: '1.1rem', marginBottom: '0.5rem' },
+  detailLabel: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)', marginTop: '1.1rem', marginBottom: '0.5rem' },
 
   // Dark glass "focus panel": the split list/detail workspace
   panelDark: {
@@ -1940,20 +2562,53 @@ const styles: any = {
   listRowActive: { background: ACCENT_SOFT },
   listRowMain: { minWidth: 0 },
   listRowTitle: { fontSize: '0.9rem', fontWeight: 600, color: '#f5f5f7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  listRowSub: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' },
-  emptyState: { padding: '2rem 1rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.88rem' },
+  listRowSub: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' },
+  emptyState: { padding: '2rem 1rem', textAlign: 'center', color: 'rgba(255,255,255,0.58)', fontSize: '0.88rem' },
 
   detailHeading: { fontSize: '1.25rem', fontWeight: 600, color: '#f5f5f7' },
-  detailSub: { fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+  detailSub: { fontSize: '0.85rem', color: 'rgba(255,255,255,0.68)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
 
   subCardGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginTop: '1.25rem' },
   subCard: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '0.85rem' },
-  subCardLabel: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', marginBottom: '0.3rem' },
+  subCardLabel: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' },
   subCardValue: { fontSize: '1.2rem', fontWeight: 700, color: '#f5f5f7' },
 
   scopeRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem', color: '#e5e7eb' },
 
   auditRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem' },
+
+  // Light-surface counterparts (used inside light cards; the dark versions
+  // render white text and would be unreadable on white).
+  th: {
+    padding: '0.75rem 0',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'rgba(17,17,19,0.62)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  },
+  td: { padding: '0.75rem 0', verticalAlign: 'top' as const },
+  tdEmpty: { padding: '2rem 0', color: 'rgba(17,17,19,0.62)', textAlign: 'center' as const },
+  mutedText: { fontSize: '0.85rem', color: 'rgba(17,17,19,0.68)' },
+  detailLabelLight: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase' as const,
+    color: 'rgba(17,17,19,0.6)',
+    marginTop: '1.1rem',
+    marginBottom: '0.5rem',
+  },
+  auditRowLight: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    padding: '0.7rem 0',
+    borderTop: '1px solid rgba(0,0,0,0.08)',
+    fontSize: '0.85rem',
+    color: '#111113',
+  },
 
   badge: { display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' },
 

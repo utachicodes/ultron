@@ -34,10 +34,18 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Recurring monitor scheduler (`scheduler.py`) wired to `worker.process_monitor_check`
 - [x] Recurring vulnerability scan schedules (`ScanSchedule`): hourly→monthly, run-now,
       pause/resume, next-run tracking, sharing `worker.execute_scan` with the API
+- [x] Signed alert webhooks (`ALERT_WEBHOOK_URL`) and a real readiness probe
+- [x] Friendly API root + 404 hint (helps when a tool probes `/v1/*`)
+- [x] Scanner URL handling: no double schemes, preserved ports, `web`/`full` dispatch
 - [x] Console sections for Monitors, Alerts, Code Scans, Compliance, and Reports
 - [x] Fixed monitor-check 500 (`monitor.id` → `monitor_obj.id`) and populated
       `body_preview` so leaked-credential detection actually runs
-- [x] `design.html`: static design reference for the console rework
+- [x] `design.html`: static design reference for the console rework — 12 views, grouped
+      keyboard-accessible navigation, inline SVG icons, mobile drawer, deep links, focus states
+- [x] Console UX pass: shared accessible primitives (`ui.tsx`), labeled forms, error/loading/empty
+      states, toasts, confirm dialogs for destructive actions, visible focus rings, contrast fixes
+- [x] Backend structure: `main.py` split into 12 domain routers under `app/routers/`
+      (auth, clients, scans, findings, reports, monitors, code scans, compliance, AI, audit, admin, system)
 
 ## In progress / needs a pass
 
@@ -58,7 +66,7 @@ as items are picked up or completed. It's the source of truth for "what's left."
 
 ### Tests
 - [x] Backend: pytest suite for auth, clients/scopes, scans, findings, reports, monitors,
-      alerts, code scans, compliance, sanitization, and AI routing (28 tests)
+      alerts, code scans, compliance, sanitization, and AI routing (51 tests)
 - [ ] Frontend: at least smoke tests for the console app's auth-gated views
 - [ ] Run the full test suite (backend + frontend) locally before every push, once it exists.
       CI currently only checks that each side imports/builds, not behavior
@@ -67,7 +75,9 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [ ] Self-service client registration flow (today only `/auth/register` exists, no UI signup)
 - [ ] Forgot-password / credential rotation flow
 - [ ] Evidence file attachments on findings (screenshots, raw scanner output)
-- [ ] Mobile pass on the console app (currently desktop-oriented, unlike the marketing site)
+- [x] Mobile pass on the console: off-canvas drawer, sticky top bar, collapsible sidebar,
+      and horizontally scrollable tables in the newer sections
+- [ ] Deduplicate findings across recurring scans (today each scan stores its own rows)
 
 ### Content
 - [ ] Legal review of `/privacy-notice` and `/service-agreement`. Both are explicitly marked
