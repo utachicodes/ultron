@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { serviceAgreement } from '../../content/site'
 
 export const metadata = {
-  title: 'Service Agreement — ULTORN',
+  title: 'Service Agreement | ULTORN',
   description: 'A plain-language description of how the Ultorn platform is intended to be used.',
 }
 

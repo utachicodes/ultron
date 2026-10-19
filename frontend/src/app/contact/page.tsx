@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { company, pageHeroes } from '../../content/site'
 
 export const metadata = {
-  title: 'Contact — ULTORN',
+  title: 'Contact | ULTORN',
   description: 'Real contact channels for Ultorn, operated by Utachi Industries.',
 }
 

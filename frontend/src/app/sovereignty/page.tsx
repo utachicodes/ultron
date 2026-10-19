@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { pageHeroes, sovereigntyPrinciples } from '../../content/site'
 
 export const metadata = {
-  title: 'Sovereignty — ULTORN',
+  title: 'Sovereignty | ULTORN',
   description: 'How Ultorn’s AI sovereignty layer sanitizes, routes, and audits every AI query.',
 }
 

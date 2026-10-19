@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { pageHeroes, scanningCapabilities } from '../../content/site'
 
 export const metadata = {
-  title: 'Scanning — ULTORN',
+  title: 'Scanning | ULTORN',
   description: 'What Ultorn’s scan engine does: Nuclei, Nmap, and HTTP evidence extraction.',
 }
 

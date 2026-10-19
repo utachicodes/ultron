@@ -1,5 +1,5 @@
 /* Shared design language for scrollable marketing pages (platform, scanning,
-   sovereignty, contact, legal) — same palette/type as the hero, independent
+   sovereignty, contact, legal), same palette/type as the hero, independent
    of the hero's viewport-locked --u scaling system since these pages scroll. */
 
 :root {
@@ -405,7 +405,7 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Console login — same dark/mono language as the landing page         */
+/* Console login, same dark/mono language as the landing page          */
 /* ---------------------------------------------------------------- */
 .login-shell {
   min-height: 100vh;

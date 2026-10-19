@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { privacyNotice } from '../../content/site'
 
 export const metadata = {
-  title: 'Privacy Notice — ULTORN',
+  title: 'Privacy Notice | ULTORN',
   description: 'A plain-language description of what Ultorn actually stores and does with data.',
 }
 

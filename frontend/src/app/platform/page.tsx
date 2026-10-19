@@ -2,7 +2,7 @@ import MarketingPageShell from '../../components/MarketingPageShell'
 import { pageHeroes, platformFeatures } from '../../content/site'
 
 export const metadata = {
-  title: 'Platform — ULTORN',
+  title: 'Platform | ULTORN',
   description: 'What the Ultorn platform actually does: onboarding, scopes, findings, audit, and admin controls.',
 }
 
