@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     scanner_timeout: int = 300
     nuclei_path: str = "nuclei"
 
+    # Alert delivery (optional)
+    alert_webhook_url: str = ""
+    alert_webhook_secret: str = ""
+
     class Config:
         env_file = ".env"
 

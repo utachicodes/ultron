@@ -30,6 +30,8 @@ MVP backend (FastAPI + SQLAlchemy + SQLite) + frontend (Next.js) implementing:
   page titles, response bodies, Nmap service detection, Nuclei template matching
 - **Continuous monitoring**: access anomalies, configuration drift, leaked credentials, and
   policy violations, with scheduled checks, alert triage, and acknowledgement/resolution
+- **Alert webhooks**: optional signed POST delivery of new alerts to Slack, Teams, or a SIEM
+  (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_SECRET`)
 - **Recurring scans**: per-client vulnerability scan schedules (hourly to monthly) with
   run-now, pause/resume, and next-run tracking
 - **AI code scanning**: detects hardcoded secrets, `eval`/`exec`, disabled TLS verification,

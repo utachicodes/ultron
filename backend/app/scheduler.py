@@ -115,3 +115,11 @@ def stop() -> None:
     global _started
     schedule.clear()
     _started = False
+
+
+def is_running() -> bool:
+    return bool(_started and _scheduler_thread and _scheduler_thread.is_alive())
+
+
+def job_count() -> int:
+    return len(schedule.get_jobs())

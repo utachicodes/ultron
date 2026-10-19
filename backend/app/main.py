@@ -986,4 +986,23 @@ def compliance_summary(
 # ============================================================
 @app.get("/health")
 def health():
-    return {"status": "ok", "app": settings.app_name}
+    """Liveness/readiness probe. Does not require auth."""
+    from sqlalchemy import text
+    from app.database import SessionLocal
+
+    db_status = "ok"
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        db_status = "error"
+    finally:
+        db.close()
+
+    jobs = scheduler.job_count()
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "app": settings.app_name,
+        "database": db_status,
+        "scheduler": {"running": scheduler.is_running(), "jobs": jobs},
+    }

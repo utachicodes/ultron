@@ -14,6 +14,8 @@ services:
       - SCANNER_TIMEOUT=300
       # Exactly one process should own the scheduler.
       - ENABLE_SCHEDULER=true
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-}
+      - ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET:-}
     volumes:
       - ultorn_data:/data
     healthcheck:

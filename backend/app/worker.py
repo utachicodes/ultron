@@ -213,21 +213,47 @@ def process_monitor_check(monitor_id: int, force: bool = False):
         monitor.last_check = datetime.utcnow()
         monitor.next_check = datetime.utcnow() + timedelta(minutes=60)
 
+        created_alerts = []
         for alert_data in alerts:
-            db.add(
-                models.Alert(
-                    monitor_id=monitor.id,
-                    title=alert_data.get("title", "Alert"),
-                    description=alert_data.get("description"),
-                    severity=alert_data.get("severity", "medium"),
-                    evidence=json.dumps(alert_data.get("evidence"))
-                    if alert_data.get("evidence")
-                    else None,
-                    status="open",
-                )
+            alert = models.Alert(
+                monitor_id=monitor.id,
+                title=alert_data.get("title", "Alert"),
+                description=alert_data.get("description"),
+                severity=alert_data.get("severity", "medium"),
+                evidence=json.dumps(alert_data.get("evidence"))
+                if alert_data.get("evidence")
+                else None,
+                status="open",
             )
+            db.add(alert)
+            created_alerts.append(alert)
 
         db.commit()
+
+        # Deliver after commit so each payload has a real id.
+        try:
+            from app.notify import dispatch_alert
+
+            for alert in created_alerts:
+                db.refresh(alert)
+                dispatch_alert(
+                    {
+                        "id": alert.id,
+                        "monitor_id": alert.monitor_id,
+                        "target": monitor.target,
+                        "monitor_type": monitor.monitor_type,
+                        "client_id": monitor.client_id,
+                        "title": alert.title,
+                        "description": alert.description,
+                        "severity": alert.severity,
+                        "status": alert.status,
+                        "evidence": json.loads(alert.evidence) if alert.evidence else None,
+                        "created_at": alert.created_at,
+                    }
+                )
+        except Exception:
+            pass
+
         return len(alerts)
     except Exception:
         db.rollback()
