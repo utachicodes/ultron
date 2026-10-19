@@ -30,7 +30,7 @@ export const legalLinks = {
 }
 
 // ------------------------------------------------------------------
-// Per-page hero copy — eyebrow / title / lede, Palantir-register:
+// Per-page hero copy: eyebrow / title / lede, Palantir-register:
 // short, declarative, confident. No filler adjectives.
 // ------------------------------------------------------------------
 export const pageHeroes = {
@@ -42,7 +42,7 @@ export const pageHeroes = {
   scanning: {
     eyebrow: 'Scanning',
     title: 'See what’s exposed. Immediately.',
-    lede: 'Three engines, one scope. Nothing waits on a verification queue — exposure is a fact, not a ticket.',
+    lede: 'Three engines, one scope. Nothing waits on a verification queue. Exposure is a fact, not a ticket.',
   },
   sovereignty: {
     eyebrow: 'Sovereignty',
@@ -63,7 +63,7 @@ export const platformFeatures = [
   },
   {
     title: 'Scan scopes',
-    body: 'Domains, IPs, URLs — add what’s in play, exclude what isn’t. The scope is the contract.',
+    body: 'Domains, IPs, URLs: add what’s in play, exclude what isn’t. The scope is the contract.',
   },
   {
     title: 'Findings & human review',
@@ -71,7 +71,7 @@ export const platformFeatures = [
   },
   {
     title: 'Immutable audit log',
-    body: 'Every action, every scan, every AI query, every review — written once, never edited. The record that survives the dispute.',
+    body: 'Every action, every scan, every AI query, every review: written once, never edited. The record that survives the dispute.',
   },
   {
     title: 'Admin controls',
@@ -90,7 +90,7 @@ export const scanningCapabilities = [
   },
   {
     title: 'HTTP/HTTPS extraction',
-    body: 'Headers, titles, response bodies — captured as evidence, not summarized away.',
+    body: 'Headers, titles, response bodies, captured as evidence, not summarized away.',
   },
   {
     title: 'No verification gate',
@@ -105,7 +105,7 @@ export const scanningCapabilities = [
 export const sovereigntyPrinciples = [
   {
     title: 'Prompt sanitization',
-    body: 'Client names, IPs, credentials, tokens, emails, card numbers — stripped before a single byte leaves the premises.',
+    body: 'Client names, IPs, credentials, tokens, emails, card numbers: stripped before a single byte leaves the premises.',
   },
   {
     title: 'Model abstraction',
@@ -113,7 +113,7 @@ export const sovereigntyPrinciples = [
   },
   {
     title: 'Local fallback',
-    body: 'If a prompt still looks sensitive after sanitization — or you tell it to — it never leaves. A local responder answers instead.',
+    body: 'If a prompt still looks sensitive after sanitization, or you tell it to, it never leaves. A local responder answers instead.',
   },
   {
     title: 'Immutable AI audit log',
@@ -130,7 +130,7 @@ export const privacyNotice = {
     },
     {
       heading: 'AI queries',
-      body: 'When you use the AI Guard feature, your prompt is sanitized to strip client names, IPs, credentials, and other sensitive patterns before it is sent to an external model (or kept local if it is still sensitive, or if you request local-only processing). We log the provider, model, and a one-way hash of the prompt and response — not the raw text.',
+      body: 'When you use the AI Guard feature, your prompt is sanitized to strip client names, IPs, credentials, and other sensitive patterns before it is sent to an external model (or kept local if it is still sensitive, or if you request local-only processing). We log the provider, model, and a one-way hash of the prompt and response, not the raw text.',
     },
     {
       heading: 'Where it lives',
@@ -146,7 +146,7 @@ export const privacyNotice = {
     },
     {
       heading: 'Status',
-      body: 'This is a plain-language description of what the current Ultorn codebase actually does with data — it is not a substitute for a lawyer-reviewed privacy policy for your jurisdiction or client contracts, and should be reviewed before commercial use.',
+      body: 'This is a plain-language description of what the current Ultorn codebase actually does with data. It is not a substitute for a lawyer-reviewed privacy policy for your jurisdiction or client contracts, and should be reviewed before commercial use.',
     },
   ],
 }
@@ -176,7 +176,7 @@ export const serviceAgreement = {
     },
     {
       heading: 'Status',
-      body: 'This is a plain-language description of how the current Ultorn codebase behaves — it is not a substitute for a lawyer-drafted service agreement or master services agreement with your clients, and should be reviewed before commercial use.',
+      body: 'This is a plain-language description of how the current Ultorn codebase behaves. It is not a substitute for a lawyer-drafted service agreement or master services agreement with your clients, and should be reviewed before commercial use.',
     },
   ],
 }
