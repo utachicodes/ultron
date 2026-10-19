@@ -199,19 +199,60 @@ def run_nmap(target: str) -> List[Dict[str, Any]]:
 
 
 def run_http_extraction(target: str) -> List[Dict[str, Any]]:
-    """Extract HTTP data: headers, titles, server banners, body previews."""
+    """Extract HTTP data: headers, titles, server banners, body previews.
+
+    Handles targets with or without a scheme, and never forces a port onto a
+    URL that already specifies one. Probes a small, ordered candidate list so
+    a normal host costs at most two requests.
+    """
+    import urllib.parse
+
     findings: List[Dict[str, Any]] = []
+    candidates: List[str] = []
 
-    schemes = ["http", "https"]
-    ports = ["80", "443", "8080", "8443"]
+    if target.startswith(("http://", "https://")):
+        parsed = urllib.parse.urlsplit(target)
+        if parsed.port:
+            candidates.append(target)
+        else:
+            candidates.append(target)
+            # Try the other scheme as well; many hosts redirect one to the other.
+            other = "https" if parsed.scheme == "http" else "http"
+            candidates.append(f"{other}://{parsed.netloc}{parsed.path or ''}")
+    else:
+        candidates = [f"http://{target}", f"https://{target}"]
 
-    for scheme in schemes:
-        for port in ports:
-            url = f"{scheme}://{target}:{port}"
+    seen_urls = set()
+    for url in candidates:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        result = _http_fetch(url, timeout=6.0)
+        if "error" in result:
+            continue
+
+        findings.append({
+            "title": f"HTTP service on {url}",
+            "description": f"Extracted HTTP data from {url}",
+            "severity": "info",
+            "target": url,
+            "evidence": {
+                "url": url,
+                "status_code": result.get("status_code"),
+                "server": result.get("server"),
+                "title": result.get("title"),
+                "headers": result.get("headers"),
+                "body_preview": result.get("body_preview"),
+            },
+            "remediation": "Review exposed HTTP service and headers.",
+        })
+
+    # Only probe alternate ports when nothing responded on 80/443.
+    if not findings and not target.startswith(("http://", "https://")):
+        for url in (f"http://{target}:8080", f"https://{target}:8443"):
             result = _http_fetch(url, timeout=6.0)
             if "error" in result:
                 continue
-
             findings.append({
                 "title": f"HTTP service on {url}",
                 "description": f"Extracted HTTP data from {url}",
@@ -227,23 +268,24 @@ def run_http_extraction(target: str) -> List[Dict[str, Any]]:
                 },
                 "remediation": "Review exposed HTTP service and headers.",
             })
-            break
 
     return findings
 
 
 def run_scan(target: str, scan_type: str = "vulnerability") -> List[Dict[str, Any]]:
     """Dispatch to scanners with full data extraction."""
-    if scan_type == "vulnerability":
+    if scan_type in ("vulnerability", "full"):
         results = run_nuclei(target)
         port_results = run_nmap(target)
         results.extend(port_results)
         http_results = run_http_extraction(target)
         results.extend(http_results)
         return results
+    elif scan_type == "web":
+        return run_http_extraction(target)
     elif scan_type == "code":
-        return [{"error": "code scanning not yet implemented in this phase"}]
+        return [{"error": "use POST /code-scans for repository scanning"}]
     elif scan_type == "monitoring":
-        return [{"error": "continuous monitoring not yet implemented in this phase"}]
+        return [{"error": "use POST /monitors for continuous monitoring"}]
     else:
         return [{"error": f"unknown scan type: {scan_type}"}]
