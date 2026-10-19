@@ -1154,7 +1154,11 @@
       document.title = label + ' — Ultorn Console';
       announcer.textContent = label + ' view loaded';
 
-      if (opts.hash !== false && history.replaceState) history.replaceState(null, '', '#' + name);
+      if (opts.hash !== false) {
+        const url = '#' + name;
+        if (opts.replace && history.replaceState) history.replaceState(null, '', url);
+        else if (history.pushState) history.pushState(null, '', url);
+      }
       if (opts.scroll !== false && dashboardEl) {
         window.scrollTo({ top: dashboardEl.offsetTop, behavior: 'smooth' });
       }
@@ -1164,7 +1168,6 @@
     navItems.forEach(function (item) {
       item.addEventListener('click', function () { showView(item.dataset.view); });
     });
-
     burger.addEventListener('click', function () {
       if (sidebar.classList.contains('open')) closeDrawer();
       else openDrawer();
@@ -1181,7 +1184,10 @@
 
     // Hero and in-page calls to action.
     document.querySelectorAll('[data-goto]').forEach(function (el) {
-      el.addEventListener('click', function () { showView(el.dataset.goto, { hash: true }); });
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        showView(el.dataset.goto, { hash: true });
+      });
     });
 
     const initial = (location.hash || '').replace('#', '');
