@@ -96,3 +96,154 @@ def test_login_is_rate_limited(anon):
     assert 429 in codes
     # first attempt should still be a normal credential failure
     assert codes[0] == 400
+
+
+def _register_and_login(anon, email: str, password: str = "supersecret"):
+    registered = anon.post(
+        "/auth/register",
+        json={"email": email, "password": password, "full_name": "Test User"},
+    )
+    assert registered.status_code == 200, registered.text
+    login = anon.post(
+        "/auth/token",
+        json={"email": email, "password": password},
+    )
+    assert login.status_code == 200, login.text
+    return registered.json(), login.json()["access_token"]
+
+
+def test_change_password_rotates_credentials(anon, db):
+    user, token = _register_and_login(anon, "rotate@user.sn")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = anon.post(
+        "/auth/change-password",
+        headers=headers,
+        json={"current_password": "supersecret", "new_password": "a-longer-secret-42"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json() == {"changed": True}
+
+    assert anon.post(
+        "/auth/token",
+        json={"email": "rotate@user.sn", "password": "supersecret"},
+    ).status_code == 400
+    assert anon.post(
+        "/auth/token",
+        json={"email": "rotate@user.sn", "password": "a-longer-secret-42"},
+    ).status_code == 200
+
+    from app import models
+    entry = (
+        db.query(models.AuditLog)
+        .filter(
+            models.AuditLog.action == "change_password",
+            models.AuditLog.user_id == user["id"],
+        )
+        .first()
+    )
+    assert entry is not None
+    assert "a-longer-secret-42" not in (entry.details or "")
+
+
+def test_change_password_rejects_wrong_current_password(anon):
+    _, token = _register_and_login(anon, "wrong-current@user.sn")
+    res = anon.post(
+        "/auth/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"current_password": "not-my-password", "new_password": "a-longer-secret-42"},
+    )
+    assert res.status_code == 400
+    assert "Current password" in res.json()["detail"]
+
+
+def test_change_password_rejects_short_or_reused_password(anon):
+    _, token = _register_and_login(anon, "policy@user.sn")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    short = anon.post(
+        "/auth/change-password",
+        headers=headers,
+        json={"current_password": "supersecret", "new_password": "short"},
+    )
+    assert short.status_code == 422
+
+    reused = anon.post(
+        "/auth/change-password",
+        headers=headers,
+        json={"current_password": "supersecret", "new_password": "supersecret"},
+    )
+    assert reused.status_code == 400
+
+
+def test_change_password_requires_authentication(anon):
+    res = anon.post(
+        "/auth/change-password",
+        json={"current_password": "supersecret", "new_password": "a-longer-secret-42"},
+    )
+    assert res.status_code == 401
+
+
+def test_admin_can_reset_a_password(client, anon, db):
+    user, _ = _register_and_login(anon, "reset-me@user.sn")
+
+    res = client.post(f"/admin/users/{user['id']}/reset-password")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["email"] == "reset-me@user.sn"
+    assert body["user_id"] == user["id"]
+    temp = body["temporary_password"]
+    assert len(temp) >= 16
+
+    assert anon.post(
+        "/auth/token",
+        json={"email": "reset-me@user.sn", "password": "supersecret"},
+    ).status_code == 400
+    assert anon.post(
+        "/auth/token",
+        json={"email": "reset-me@user.sn", "password": temp},
+    ).status_code == 200
+
+    from app import models
+    entry = (
+        db.query(models.AuditLog)
+        .filter(models.AuditLog.action == "admin_reset_password")
+        .first()
+    )
+    assert entry is not None
+    assert temp not in (entry.details or "")
+
+
+def test_non_admin_cannot_reset_a_password(anon):
+    user, token = _register_and_login(anon, "not-admin@user.sn")
+    victim, _ = _register_and_login(anon, "victim@user.sn")
+
+    res = anon.post(
+        f"/admin/users/{victim['id']}/reset-password",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 403
+
+
+def test_disabled_account_cannot_sign_in_or_reuse_its_token(client, anon):
+    user, token = _register_and_login(anon, "disabled@user.sn")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert anon.get("/auth/me", headers=headers).status_code == 200
+    assert client.patch(
+        f"/admin/users/{user['id']}", json={"is_active": False}
+    ).status_code == 200
+
+    assert anon.get("/auth/me", headers=headers).status_code == 401
+    assert anon.post(
+        "/auth/token",
+        json={"email": "disabled@user.sn", "password": "supersecret"},
+    ).status_code == 400
+
+    assert client.patch(
+        f"/admin/users/{user['id']}", json={"is_active": True}
+    ).status_code == 200
+    assert anon.post(
+        "/auth/token",
+        json={"email": "disabled@user.sn", "password": "supersecret"},
+    ).status_code == 200

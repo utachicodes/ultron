@@ -94,9 +94,9 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 }
 
-function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
-  const [email, setEmail] = useState('admin@ultorn.local')
-  const [password, setPassword] = useState('admin123')
+function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; notice?: string }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -141,6 +141,7 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
         <span className="login-chip">[ Sovereign access ]</span>
         <h1 className="login-title">Welcome back.</h1>
         <p className="login-sub">Sign in to the operator console.</p>
+        {notice && <div className="login-notice" role="status">{notice}</div>}
 
         <form className="login-form" onSubmit={submit}>
           <div className="login-field">
@@ -153,6 +154,7 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              autoFocus
             />
           </div>
           <div className="login-field">
@@ -172,10 +174,150 @@ function LoginScreen({ onToken }: { onToken: (token: string) => void }) {
           </button>
         </form>
 
-        <p className="login-hint">Default: admin@ultorn.local / admin123</p>
+        <p className="login-hint">Access is provisioned by your Ultorn administrator.</p>
         <a href="/" className="login-back">← Back to home</a>
       </div>
     </div>
+  )
+}
+
+function ChangePasswordButton({
+  api,
+  onChanged,
+}: {
+  api: (path: string, opts?: RequestInit) => Promise<any>
+  onChanged: (notice: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const close = () => {
+    if (saving) return
+    setOpen(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setError('')
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (newPassword.length < 8) {
+      setError('Use at least 8 characters for the new password.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The new passwords do not match.')
+      return
+    }
+    if (newPassword === currentPassword) {
+      setError('Choose a password different from the current one.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      })
+      onChanged('Password changed. Sign in with your new password.')
+    } catch (e: any) {
+      setError(e.message || 'Could not change the password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          background: 'transparent',
+          border: '1px solid rgba(255,255,255,0.14)',
+          color: 'rgba(255,255,255,0.72)',
+          padding: '0.5rem 0.9rem',
+          borderRadius: '10px',
+          cursor: 'pointer',
+          fontSize: '0.8rem',
+          fontWeight: 500,
+          minHeight: '40px',
+          marginBottom: '0.5rem',
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <rect x="4" y="10" width="16" height="11" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </svg>
+        Change password
+      </button>
+
+      {open && (
+        <Modal title="Change password" onClose={close}>
+          <form onSubmit={submit}>
+            {error && (
+              <div role="alert" style={{ color: '#fca5a5', fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                {error}
+              </div>
+            )}
+            <Field label="Current password" htmlFor="account-current-password" tone="dark" required>
+              <TextInput
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                autoFocus
+              />
+            </Field>
+            <Field
+              label="New password"
+              htmlFor="account-new-password"
+              tone="dark"
+              required
+              hint="At least 8 characters. A longer passphrase is stronger."
+            >
+              <TextInput
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </Field>
+            <Field label="Confirm new password" htmlFor="account-confirm-password" tone="dark" required>
+              <TextInput
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </Field>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <Button type="submit" loading={saving}>Update password</Button>
+              <Button variant="secondaryDark" onClick={close} disabled={saving}>Cancel</Button>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: '0.78rem', margin: '0.9rem 0 0' }}>
+              You will be signed out and asked to sign in with the new password.
+            </p>
+          </form>
+        </Modal>
+      )}
+    </>
   )
 }
 
@@ -312,6 +454,7 @@ type ToastTone = 'info' | 'error' | 'success'
 
 function Page() {
   const [token, setToken] = useState<string | null>(null)
+  const [authNotice, setAuthNotice] = useState('')
 
   useEffect(() => {
     setToken(localStorage.getItem('token'))
@@ -412,7 +555,16 @@ function Page() {
 
   // ---------- LOGIN ----------
   if (!token) {
-    return <LoginScreen onToken={(t: string) => { setToken(t); setView('dashboard') }} />
+    return (
+      <LoginScreen
+        notice={authNotice}
+        onToken={(t: string) => {
+          setAuthNotice('')
+          setToken(t)
+          setView('dashboard')
+        }}
+      />
+    )
   }
 
   // Grouped so no menu exposes more than four choices at once (Hick's Law),
@@ -494,6 +646,28 @@ function Page() {
           </button>
         </div>
 
+        <a
+          href="/"
+          className="sidebar-link sidebar-home"
+          aria-label="Back to landing page"
+          title="Back to landing page"
+          style={{
+            ...styles.sidebarLink,
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '0.8rem',
+            margin: '0 0.5rem 0.25rem',
+            padding: '0.55rem 0.9rem',
+            textDecoration: 'none',
+          }}
+        >
+          <span style={styles.sidebarIcon} aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5" /><path d="M11 18l-6-6 6-6" />
+            </svg>
+          </span>
+          <span className="sidebar-label">Back to landing page</span>
+        </a>
+
         <div style={styles.sidebarNavScroll}>
           {NAV_GROUPS.map((group) => (
             <nav key={group.label} aria-label={`${group.label} navigation`} style={styles.sidebarNav}>
@@ -523,6 +697,15 @@ function Page() {
               <div style={styles.sidebarUserRole}>{user?.role || ''}</div>
             </div>
           </div>
+          <ChangePasswordButton
+            api={api}
+            onChanged={(notice) => {
+              setAuthNotice(notice)
+              localStorage.removeItem('token')
+              setToken(null)
+              setView('login')
+            }}
+          />
           <button onClick={() => { localStorage.removeItem('token'); setToken(null); setView('login') }} style={styles.sidebarSignOut}>
             Sign out
           </button>
@@ -1312,6 +1495,10 @@ function AdminSection({ ctx }: { ctx: any }) {
     const [loading, setLoading] = useState(true)
     const [creatingKey, setCreatingKey] = useState(false)
     const [pendingRevoke, setPendingRevoke] = useState<any>(null)
+    const [resetUser, setResetUser] = useState<any>(null)
+    const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
+    const [resettingPassword, setResettingPassword] = useState(false)
+    const [resetError, setResetError] = useState('')
 
     const loadUsers = async () => {
       const data = await api('/admin/users')
@@ -1378,6 +1565,28 @@ function AdminSection({ ctx }: { ctx: any }) {
       }
     }
 
+    const closeReset = () => {
+      if (resettingPassword) return
+      setResetUser(null)
+      setTemporaryPassword(null)
+      setResetError('')
+    }
+
+    const resetPassword = async () => {
+      if (!resetUser) return
+      setResettingPassword(true)
+      setResetError('')
+      try {
+        const result = await api(`/admin/users/${resetUser.id}/reset-password`, { method: 'POST' })
+        setTemporaryPassword(result.temporary_password)
+        notify('Temporary password generated. Share it securely.', 'success')
+      } catch (e: any) {
+        setResetError(e.message || 'Could not reset the password')
+      } finally {
+        setResettingPassword(false)
+      }
+    }
+
     return (
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Admin</h1>
@@ -1423,6 +1632,17 @@ function AdminSection({ ctx }: { ctx: any }) {
                   ? 'Disabling immediately blocks sign-in and API access for this user.'
                   : 'This account cannot sign in until it is enabled again.'}
               </p>
+              <div style={styles.detailLabel}>Credentials</div>
+              <button
+                type="button"
+                onClick={() => { setResetUser(u); setTemporaryPassword(null); setResetError('') }}
+                style={styles.darkActionBtn}
+              >
+                Reset password
+              </button>
+              <p style={{ ...styles.listRowSub, marginTop: '0.6rem' }}>
+                Generates a one-time password for a locked-out user. It is shown once and never stored in the audit log.
+              </p>
             </>
           )}
         />
@@ -1450,7 +1670,7 @@ function AdminSection({ ctx }: { ctx: any }) {
                     >
                       Copy key
                     </Button>
-                    <Button variant="secondary" onClick={() => setShowCreate(false)}>Done</Button>
+                    <Button variant="secondaryDark" onClick={() => setShowCreate(false)}>Done</Button>
                   </div>
                 </>
               ) : (
@@ -1482,6 +1702,50 @@ function AdminSection({ ctx }: { ctx: any }) {
             ))}
           </div>
         </div>
+
+        {resetUser && (
+          <Modal title={`Reset password for ${resetUser.email}`} onClose={closeReset}>
+            {temporaryPassword ? (
+              <>
+                <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.85rem', marginTop: 0 }}>
+                  Share this temporary password securely. The user should change it after signing in.
+                </p>
+                <div style={styles.codeBlock}>
+                  {temporaryPassword}
+                  <div style={{ color: '#fcd34d', marginTop: '0.5rem', fontFamily: 'inherit' }}>
+                    This will not be shown again.
+                  </div>
+                </div>
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(temporaryPassword)
+                      notify('Temporary password copied to clipboard', 'success')
+                    }}
+                  >
+                    Copy password
+                  </Button>
+                  <Button variant="secondaryDark" onClick={closeReset}>Done</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.85rem', marginTop: 0 }}>
+                  This replaces the user&apos;s current password immediately. Their existing session may stay active until it expires.
+                </p>
+                {resetError && (
+                  <div role="alert" style={{ color: '#fca5a5', fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                    {resetError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Button onClick={resetPassword} loading={resettingPassword}>Generate temporary password</Button>
+                  <Button variant="secondaryDark" onClick={closeReset} disabled={resettingPassword}>Cancel</Button>
+                </div>
+              </>
+            )}
+          </Modal>
+        )}
 
         <ConfirmDialog
           open={Boolean(pendingRevoke)}

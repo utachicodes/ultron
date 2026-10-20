@@ -469,6 +469,17 @@
   font-size: 14px;
   color: var(--m-dim);
 }
+.login-notice {
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  background: rgba(74, 222, 128, 0.1);
+  color: #bbf7d0;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
 .login-form {
   width: 100%;
   margin-top: 34px;

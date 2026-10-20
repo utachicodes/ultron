@@ -41,6 +41,36 @@ def admin_update_user(
     )
     return user
 
+
+@router.post("/admin/users/{user_id}/reset-password", response_model=schemas.TemporaryPasswordOut)
+def admin_reset_password(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin)),
+):
+    """Generate a one-time password for a user who cannot sign in.
+
+    The password is returned exactly once and never written to the audit log.
+    The user should rotate it after signing in.
+    """
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    temporary_password = auth.generate_temporary_password()
+    user.hashed_password = auth.get_password_hash(temporary_password)
+    db.commit()
+    audit.log_action(
+        db, "admin_reset_password", user_id=current_user.id,
+        resource_type="user", resource_id=str(user_id),
+        details={"email": user.email},
+    )
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "temporary_password": temporary_password,
+    }
+
 # ============================================================
 # Admin: API key management
 # ============================================================

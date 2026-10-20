@@ -48,6 +48,11 @@ as items are picked up or completed. It's the source of truth for "what's left."
       states, toasts, confirm dialogs for destructive actions, visible focus rings, contrast fixes
 - [x] Backend structure: `main.py` split into 12 domain routers under `app/routers/`
       (auth, clients, scans, findings, reports, monitors, code scans, compliance, AI, audit, admin, system)
+- [x] Credential rotation: self-service password change with current-password proof, admin-generated
+      one-time reset passwords (never written to the audit log), 8-character minimum, and disabled
+      accounts now blocked at both sign-in and token/API-key validation
+- [x] Console navigation: sidebar shortcut back to the landing page and a visible “Change password”
+      dialog that signs the user out with a confirmation notice after rotation
 
 ## In progress / needs a pass
 
@@ -67,15 +72,17 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [ ] Postgres option for `DATABASE_URL` in production (SQLite is fine for MVP/single-node only)
 
 ### Tests
-- [x] Backend: pytest suite for auth, clients/scopes, scans, findings, reports, monitors,
-      alerts, code scans, compliance, sanitization, and AI routing (51 tests)
+- [x] Backend: pytest suite for auth, credential rotation, disabled-account enforcement,
+      clients/scopes, scans, findings, reports, monitors, alerts, code scans, compliance,
+      sanitization, and AI routing (58 tests)
 - [ ] Frontend: at least smoke tests for the console app's auth-gated views
 - [ ] Run the full test suite (backend + frontend) locally before every push, once it exists.
       CI currently only checks that each side imports/builds, not behavior
 
 ### Product
 - [ ] Self-service client registration flow (today only `/auth/register` exists, no UI signup)
-- [ ] Forgot-password / credential rotation flow
+- [ ] Email-based self-service forgot-password flow (requires SMTP/provider; admin-mediated
+      temporary-password reset and authenticated password change are implemented)
 - [ ] Evidence file attachments on findings (screenshots, raw scanner output)
 - [x] Mobile pass on the console: off-canvas drawer, sticky top bar, collapsible sidebar,
       and horizontally scrollable tables in the newer sections

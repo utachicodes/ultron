@@ -46,6 +46,7 @@ const S = {
   },
   primary: { background: ACCENT, color: '#fff' },
   secondary: { background: 'rgba(17,17,19,0.06)', color: '#111113', borderColor: 'rgba(17,17,19,0.12)' },
+  secondaryDark: { background: 'rgba(255,255,255,0.1)', color: '#f5f5f7', borderColor: 'rgba(255,255,255,0.2)' },
   ghost: { background: 'transparent', color: '#4c1d95', borderColor: 'rgba(124,58,237,0.35)' },
   danger: { background: '#b91c1c', color: '#fff' },
   disabled: { opacity: 0.55, cursor: 'not-allowed' },
@@ -201,7 +202,7 @@ export function Textarea({
 export const Button = React.forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+    variant?: 'primary' | 'secondary' | 'secondaryDark' | 'ghost' | 'danger'
     loading?: boolean
   }
 >(function Button(

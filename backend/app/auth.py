@@ -43,6 +43,13 @@ def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
+def generate_temporary_password(length: int = 16) -> str:
+    """A one-time password for admin-mediated resets. Ambiguous characters are
+    omitted so it can be read aloud or copied without transcription errors."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
@@ -58,7 +65,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 def authenticate_user(db: Session, email: str, password: str):
     user = db.query(User).filter(User.email == email).first()
-    if not user:
+    if not user or not user.is_active:
         return None
     if not verify_password(password, user.hashed_password):
         return None
@@ -82,7 +89,7 @@ def get_current_user(
             .filter(APIKey.key_hash == hash_api_key(x_api_key), APIKey.is_active == True)
             .first()
         )
-        if not key_row:
+        if not key_row or not key_row.owner or not key_row.owner.is_active:
             raise credentials_exception
         key_row.last_used_at = func.now()
         db.commit()
@@ -102,7 +109,7 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
     user = db.query(User).filter(User.email == token_data.email).first()
-    if user is None:
+    if user is None or not user.is_active:
         raise credentials_exception
     return user
 

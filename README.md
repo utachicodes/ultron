@@ -67,7 +67,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 The API will be at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
 
-Default admin: `admin@ultorn.local` / `admin123`
+Default admin: `admin@ultorn.local` / `admin123` — change it from **Change password**
+in the console sidebar immediately after first sign-in.
 
 Optional demo data (two clients, findings, monitors, alerts, a code scan):
 
@@ -114,6 +115,7 @@ docker-compose up --build
 | POST | `/auth/token` | Login (JWT) |
 | GET | `/auth/me` | Current authenticated user |
 | POST | `/auth/register` | Register user |
+| POST | `/auth/change-password` | Rotate your own password (requires the current password) |
 | GET/POST | `/clients` | Client management |
 | POST | `/clients/{id}/scopes` | Add scan target |
 | POST | `/scopes/{id}/verify` | Verify ownership (optional) |
@@ -143,6 +145,7 @@ docker-compose up --build
 | GET | `/health` | Health check |
 | GET | `/admin/users` | List users (admin) |
 | PATCH | `/admin/users/{id}` | Update a user's role / active status (admin) |
+| POST | `/admin/users/{id}/reset-password` | Generate a one-time temporary password (admin) |
 | GET | `/admin/api-keys` | List API keys (admin) |
 | POST | `/admin/api-keys` | Mint an API key, raw key shown once (admin) |
 | DELETE | `/admin/api-keys/{id}` | Revoke an API key (admin) |

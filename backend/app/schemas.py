@@ -1,6 +1,6 @@
 import json
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.models import UserRole
@@ -28,7 +28,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8, max_length=128)
 
 
 class RegisterCreate(BaseModel):
@@ -36,8 +36,21 @@ class RegisterCreate(BaseModel):
     new accounts are always created as `client`. Elevation happens only
     through the admin panel."""
     email: str
-    password: str
+    password: str = Field(min_length=8, max_length=128)
     full_name: Optional[str] = None
+
+
+class PasswordChange(BaseModel):
+    """Authenticated credential rotation. The current password is required so
+    a stolen token cannot silently take over the account."""
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class TemporaryPasswordOut(BaseModel):
+    user_id: int
+    email: str
+    temporary_password: str
 
 
 class UserOut(UserBase):
