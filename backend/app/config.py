@@ -65,10 +65,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
-    # AI providers
+    # AI providers. "ollama" talks to a local, open-source model (no API key,
+    # no external network call) -- useful for exercising the AI Guard flow
+    # end to end without paying for Anthropic/OpenAI access.
     ai_provider: str = "anthropic"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
 
     # Scanning
     scanner_timeout: int = 300

@@ -51,6 +51,10 @@ def route_ai_query(
             response = _call_openai(sanitized_prompt)
             provider = "openai"
             model = "gpt-4o-mini"
+        elif settings.ai_provider == "ollama":
+            response = _call_ollama(sanitized_prompt)
+            provider = "ollama"
+            model = settings.ollama_model
         else:
             response = _call_anthropic(sanitized_prompt)
             provider = "anthropic"
@@ -122,6 +126,32 @@ def _call_openai(prompt: str) -> str:
         return resp.choices[0].message.content or ""
     except Exception as e:
         return f"[AI_ERROR] OpenAI call failed: {str(e)}"
+
+
+def _call_ollama(prompt: str) -> str:
+    """Call a local Ollama server (https://ollama.com) running an open-source
+    model -- no API key, no external network call, so it stays true to the
+    sovereignty pitch while still giving a real model response to test
+    against (unlike `_local_process`, which is pattern matching, not a
+    model). Requires `ollama pull <model>` and `ollama serve` beforehand.
+    """
+    import httpx
+
+    try:
+        resp = httpx.post(
+            f"{settings.ollama_base_url}/api/generate",
+            json={"model": settings.ollama_model, "prompt": prompt, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "")
+    except httpx.ConnectError:
+        return (
+            f"[AI_PROVIDER_NOT_CONFIGURED] Could not reach Ollama at {settings.ollama_base_url}. "
+            f"Run `ollama serve` and `ollama pull {settings.ollama_model}` first."
+        )
+    except Exception as e:
+        return f"[AI_ERROR] Ollama call failed: {str(e)}"
 
 
 def _local_process(prompt: str) -> str:

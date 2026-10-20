@@ -66,6 +66,57 @@ def test_ai_query_local_stays_local(client):
     assert body["query_id"]
 
 
+def test_ai_query_uses_ollama_when_configured(client, monkeypatch):
+    """AI_PROVIDER=ollama should call a local model server, not canned
+    rule-based text -- this is what lets someone exercise the AI Guard flow
+    with a real, open-source model and no API key."""
+    import httpx
+    from app import config
+
+    monkeypatch.setattr(config.settings, "ai_provider", "ollama")
+    monkeypatch.setattr(config.settings, "ollama_model", "llama3.2")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"response": "This looks like a benign informational query."}
+
+    def fake_post(url, json=None, timeout=None):
+        assert url == f"{config.settings.ollama_base_url}/api/generate"
+        assert json["model"] == "llama3.2"
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    res = client.post(
+        "/ai/query",
+        json={"prompt": "What does a 'high' severity finding mean?"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["provider"] == "ollama"
+    assert body["model"] == "llama3.2"
+    assert body["response"] == "This looks like a benign informational query."
+
+
+def test_ai_query_reports_when_ollama_is_unreachable(client, monkeypatch):
+    import httpx
+    from app import config
+
+    monkeypatch.setattr(config.settings, "ai_provider", "ollama")
+
+    def fake_post(url, json=None, timeout=None):
+        raise httpx.ConnectError("connection refused", request=None)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    res = client.post("/ai/query", json={"prompt": "hello there"})
+    assert res.status_code == 200, res.text
+    assert "ollama serve" in res.json()["response"].lower()
+
+
 def test_ai_audit_records_queries(client):
     client.post("/ai/query", json={"prompt": "hello", "force_local": True})
     res = client.get("/ai/audit")
