@@ -206,22 +206,6 @@ html.hero-locked body {
   background: #232323;
   color: #fff;
 }
-.btn-nav-start {
-  height: calc(28 * var(--u));
-  padding-left: calc(13.5 * var(--u));
-  padding-right: calc(14.5 * var(--u));
-  border-radius: calc(14 * var(--u));
-  background: var(--white-btn);
-  color: var(--btn-ink);
-  font-size: calc(11.1 * var(--u));
-  font-weight: 500;
-  letter-spacing: 0;
-  gap: calc(7 * var(--u));
-  transition: background 0.18s ease;
-}
-.btn-nav-start:hover {
-  background: #fff;
-}
 .arw {
   width: calc(11.5 * var(--u));
   height: calc(9.6 * var(--u));
@@ -745,9 +729,6 @@ html.hanim.hgo .btn-login {
 }
 html.hanim.hgo .burger {
   animation: pillIn 0.55s var(--e-soft) 0.68s both;
-}
-html.hanim.hgo .btn-nav-start {
-  animation: pillIn 0.55s var(--e-soft) 0.73s both;
 }
 html.hanim.hgo .ctas .btn-primary {
   animation: pillIn 0.7s var(--e-reveal) 0.9s both;

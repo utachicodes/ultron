@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { navLinks } from '../content/site'
-import Arrow from './Arrow'
 
 export default function MarketingNav({ current }: { current?: string }) {
   const [open, setOpen] = useState(false)
@@ -26,9 +25,6 @@ export default function MarketingNav({ current }: { current?: string }) {
 
         <div className="mnav-actions">
           <a href="/console" className="mbtn mbtn-login">Login</a>
-          <a href="/signup" className="mbtn mbtn-start">
-            Get Started <Arrow />
-          </a>
         </div>
 
         <button
@@ -48,9 +44,6 @@ export default function MarketingNav({ current }: { current?: string }) {
         ))}
         <div className="mdivider" />
         <a href="/console" onClick={() => setOpen(false)}>Login</a>
-        <a href="/signup" className="mstart" onClick={() => setOpen(false)}>
-          Get Started <Arrow />
-        </a>
       </div>
     </>
   )

@@ -128,18 +128,6 @@
   background: #232323;
   color: #fff;
 }
-.mbtn-start {
-  height: 34px;
-  padding: 0 16px 0 18px;
-  border-radius: 17px;
-  background: var(--m-white-btn);
-  color: var(--m-btn-ink);
-  font-size: 13px;
-  font-weight: 500;
-}
-.mbtn-start:hover {
-  background: #fff;
-}
 .marw {
   width: 11px;
   height: 9px;
@@ -226,19 +214,6 @@
   background: var(--m-line);
   margin: 6px 10px;
 }
-.mmenu .mstart {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--m-white-btn);
-  color: var(--m-btn-ink);
-  margin: 6px 10px 0;
-  padding: 13px 16px;
-  border-radius: 14px;
-  font-weight: 600;
-}
-
 /* ---------------------------------------------------------------- */
 /* Hero block (per-page eyebrow / title / lede)                       */
 /* ---------------------------------------------------------------- */

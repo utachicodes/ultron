@@ -21,7 +21,6 @@ export const navLinks = [
   { label: 'Platform', href: '/platform' },
   { label: 'Scanning', href: '/scanning' },
   { label: 'Sovereignty', href: '/sovereignty' },
-  { label: 'Contact', href: '/contact' },
 ]
 
 export const legalLinks = {

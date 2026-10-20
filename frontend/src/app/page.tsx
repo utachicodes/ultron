@@ -338,9 +338,6 @@ export default function LandingPage() {
 
           <div className="nav-actions">
             <a href="/console" className="btn btn-login">Login</a>
-            <a href="/signup" className="btn btn-nav-start">
-              Get Started {ARROW}
-            </a>
           </div>
 
           <button
@@ -355,7 +352,7 @@ export default function LandingPage() {
         </header>
 
         <nav className="menu" id="menu" aria-label="Mobile">
-          {NAV_LINKS.filter((l) => l.href !== '/contact').map((l) => (
+          {NAV_LINKS.map((l) => (
             <a key={l.href} href={l.href}>{l.label}</a>
           ))}
           <div className="divider" />
