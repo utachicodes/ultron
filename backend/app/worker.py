@@ -4,14 +4,37 @@ from __future__ import annotations
 
 import time
 import json
+import hashlib
 from app.scanner import run_scan
 from app.database import SessionLocal
 from app import models
 from sqlalchemy.sql import func
 
 
+def _compute_fingerprint(client_id: int, result: dict) -> str:
+    """Stable identity for "the same underlying issue" across recurring scans.
+
+    We intentionally hash a small, normalized set of fields (client, title,
+    target, severity) rather than the full result -- evidence/description
+    text (response bodies, banners, timestamps...) can legitimately vary
+    scan-to-scan for what is really the same vulnerability, and we don't
+    want that noise to defeat dedup.
+    """
+    title = (result.get("title") or "unknown").strip().lower()
+    target = (result.get("target") or "").strip().lower()
+    severity = (result.get("severity") or "info").strip().lower()
+    raw = f"{client_id}:{title}:{target}:{severity}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def process_scan(scan_id: int):
-    """Run a scan in the background."""
+    """Run a scan in the background.
+
+    NOTE: dead code. Nothing in the app calls this anymore (the API endpoint
+    and the scheduler both go through `execute_scan` below, which is the
+    version that does finding dedup). Left in place only for reference;
+    do not wire this one up without adding the same dedup logic.
+    """
     db = SessionLocal()
     try:
         scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
@@ -92,37 +115,98 @@ def execute_scan(db, scan, user_id: int | None = None) -> dict:
         .all()
     )
 
-    all_findings = []
+    all_findings = []  # new Finding rows actually inserted by this scan run
+    # Severities of every issue that is "new or still open" as of this run --
+    # i.e. newly created findings plus pre-existing open findings that this
+    # run re-detected (and merely bumped occurrence_count on, with no new
+    # row). This is what the scan summary is built from: for a recurring
+    # scan where most results are repeats of still-open issues, a summary
+    # that only counted brand-new rows would make the scan look falsely
+    # clean. The summary should describe "what's wrong right now", not
+    # "what rows did this particular run insert".
+    counted_severities = []
+    # Findings created earlier in *this* run, keyed by fingerprint. The
+    # session uses autoflush=False, so a plain query wouldn't see rows
+    # added-but-not-flushed by an earlier iteration of this same loop --
+    # this local cache catches duplicates within a single scan/scope list
+    # too, not just duplicates across separate scan runs.
+    created_in_this_run = {}
+
     for scope in scopes:
         results = run_scan(scope.target, scan.scan_type)
         for r in results:
             if "error" in r:
                 continue
+            severity = r.get("severity", "info")
+            fingerprint = _compute_fingerprint(scan.client_id, r)
+
+            if fingerprint in created_in_this_run:
+                created_in_this_run[fingerprint].occurrence_count = (
+                    created_in_this_run[fingerprint].occurrence_count or 1
+                ) + 1
+                counted_severities.append(severity)
+                continue
+
+            # Look for the same issue already on record for this client.
+            # Dedup is scoped to the client (any of its scans), not just
+            # this scan, since a recurring schedule re-runs the same scope
+            # under a brand new Scan row every time.
+            existing = (
+                db.query(models.Finding)
+                .join(models.Scan, models.Finding.scan_id == models.Scan.id)
+                .filter(
+                    models.Scan.client_id == scan.client_id,
+                    models.Finding.fingerprint == fingerprint,
+                    models.Finding.status == "open",
+                )
+                .order_by(models.Finding.id.desc())
+                .first()
+            )
+
+            if existing is not None:
+                # Judgment call: we only dedup against findings still in the
+                # default "open" state. If a human reviewer already marked
+                # this fingerprint "fixed"/"false_positive"/anything else,
+                # we deliberately do NOT touch that row -- silently bumping
+                # its counter (or flipping it back open) would erase the
+                # reviewer's decision. A rescan that still finds the issue
+                # instead falls through and gets its own fresh row below,
+                # which is the honest signal that it has recurred/regressed
+                # since being closed.
+                existing.occurrence_count = (existing.occurrence_count or 1) + 1
+                created_in_this_run[fingerprint] = existing
+                counted_severities.append(severity)
+                continue
+
             finding = models.Finding(
                 scan_id=scan.id,
                 title=r.get("title", "Unknown"),
                 description=r.get("description"),
-                severity=r.get("severity", "info"),
+                severity=severity,
                 cvss_score=r.get("cvss_score"),
                 owasp_category=None,
                 target=r.get("target"),
                 evidence=json.dumps(r.get("evidence")) if r.get("evidence") else None,
                 remediation=r.get("remediation"),
+                fingerprint=fingerprint,
+                first_seen_scan_id=scan.id,
             )
             db.add(finding)
             all_findings.append(finding)
+            created_in_this_run[fingerprint] = finding
+            counted_severities.append(severity)
 
-    critical_high = [f for f in all_findings if f.severity in ("critical", "high")]
+    critical_high = [s for s in counted_severities if s in ("critical", "high")]
 
     scan.status = "completed"
     scan.completed_at = func.now()
     scan.summary = json.dumps(
         {
-            "total_findings": len(all_findings),
-            "critical": len([f for f in all_findings if f.severity == "critical"]),
-            "high": len([f for f in all_findings if f.severity == "high"]),
-            "medium": len([f for f in all_findings if f.severity == "medium"]),
-            "low": len([f for f in all_findings if f.severity == "low"]),
+            "total_findings": len(counted_severities),
+            "critical": counted_severities.count("critical"),
+            "high": counted_severities.count("high"),
+            "medium": counted_severities.count("medium"),
+            "low": counted_severities.count("low"),
             "requires_human_review": len(critical_high),
         }
     )
@@ -146,7 +230,7 @@ def execute_scan(db, scan, user_id: int | None = None) -> dict:
 
     return {
         "status": "completed",
-        "findings_count": len(all_findings),
+        "findings_count": len(counted_severities),
         "requires_human_review": len(critical_high),
     }
 

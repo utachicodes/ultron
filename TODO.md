@@ -103,7 +103,13 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Evidence file attachments on findings (screenshots, raw scanner output) — added POST/GET `/findings/{finding_id}/attachments`, GET/DELETE `/findings/{finding_id}/attachments/{attachment_id}` in `app/routers/findings.py`
 - [x] Mobile pass on the console: off-canvas drawer, sticky top bar, collapsible sidebar,
       and horizontally scrollable tables in the newer sections
-- [ ] Deduplicate findings across recurring scans (today each scan stores its own rows)
+- [x] Deduplicate findings across recurring scans (today each scan stores its own rows) —
+      `execute_scan` in `app/worker.py` now fingerprints each result (sha256 of client_id +
+      normalized title/target/severity) and, if an `open` Finding with that fingerprint already
+      exists for the client, bumps its `occurrence_count` instead of inserting a duplicate row;
+      a finding a human already marked resolved/false_positive is left untouched and a rescan
+      that still detects it gets its own fresh row instead of silently reopening the old one.
+      Scan summaries count new-or-still-open issues, not just rows inserted by that run.
 
 ### Content
 - [ ] Legal review of `/privacy-notice` and `/service-agreement`. Both are explicitly marked
