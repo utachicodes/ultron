@@ -56,7 +56,8 @@ as items are picked up or completed. It's the source of truth for "what's left."
 
 ## In progress / needs a pass
 
-- [ ] CI: add frontend smoke tests once a browser-level test harness exists
+- [x] CI: add frontend smoke tests once a browser-level test harness exists — Jest + React
+      Testing Library wired up, `npm test -- --ci` runs in the frontend CI job
 
 ## Backlog
 
@@ -84,7 +85,8 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Backend: pytest suite for auth, credential rotation, disabled-account enforcement,
       clients/scopes, scans, findings, reports, monitors, alerts, code scans, compliance,
       sanitization, and AI routing (58 tests)
-- [ ] Frontend: at least smoke tests for the console app's auth-gated views
+- [x] Frontend: at least smoke tests for the console app's auth-gated views — Jest/RTL smoke
+      tests cover the login gate, form inputs, and the authenticated shell after login
 - [ ] Run the full test suite (backend + frontend) locally before every push, once it exists.
       CI currently only checks that each side imports/builds, not behavior
 
@@ -98,7 +100,7 @@ as items are picked up or completed. It's the source of truth for "what's left."
       the link is logged server-side (and echoed back as `dev_reset_token` only when
       `DEBUG=true`) via `_deliver_reset_link` in `routers/auth.py` — swap that one function for
       a real send once a provider is chosen, the token logic itself needs no changes.
-- [ ] Evidence file attachments on findings (screenshots, raw scanner output)
+- [x] Evidence file attachments on findings (screenshots, raw scanner output) — added POST/GET `/findings/{finding_id}/attachments`, GET/DELETE `/findings/{finding_id}/attachments/{attachment_id}` in `app/routers/findings.py`
 - [x] Mobile pass on the console: off-canvas drawer, sticky top bar, collapsible sidebar,
       and horizontally scrollable tables in the newer sections
 - [ ] Deduplicate findings across recurring scans (today each scan stores its own rows)
