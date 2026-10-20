@@ -11,25 +11,35 @@
 import React, { useEffect, useRef } from 'react'
 
 const ACCENT = '#7c3aed'
+const TEXT = '#f4f4f6'
+const TEXT_DIM = 'rgba(244,244,246,0.64)'
+const TEXT_FAINT = 'rgba(244,244,246,0.42)'
+const BORDER = 'rgba(255,255,255,0.08)'
+const BORDER_STRONG = 'rgba(255,255,255,0.16)'
+const SURFACE_RAISED = '#15151b'
 
+// These primitives render on the console's single dark surface everywhere
+// now (there is no more light-page variant), so "light"/"dark" `tone` props
+// below are kept only for the depth difference between the page body and a
+// glass Modal, not for a literal light/dark color scheme switch.
 const S = {
   field: { display: 'flex', flexDirection: 'column' as const, gap: '0.35rem', marginBottom: '0.9rem' },
-  label: { fontSize: '0.78rem', fontWeight: 600, color: 'rgba(17,17,19,0.72)', letterSpacing: '0.01em' },
-  required: { color: '#b91c1c', marginLeft: '0.15rem' },
-  hint: { fontSize: '0.75rem', color: 'rgba(17,17,19,0.62)' },
-  error: { fontSize: '0.75rem', color: '#b91c1c' },
+  label: { fontSize: '0.78rem', fontWeight: 600, color: TEXT_DIM, letterSpacing: '0.01em' },
+  required: { color: '#fca5a5', marginLeft: '0.15rem' },
+  hint: { fontSize: '0.75rem', color: TEXT_FAINT },
+  error: { fontSize: '0.75rem', color: '#fca5a5' },
   control: {
     width: '100%',
     padding: '0.65rem 0.8rem',
     borderRadius: '10px',
-    border: '1px solid rgba(0,0,0,0.14)',
-    background: '#fff',
-    color: '#111113',
+    border: `1px solid ${BORDER_STRONG}`,
+    background: 'rgba(255,255,255,0.05)',
+    color: TEXT,
     fontSize: '0.9rem',
     minHeight: 44,
     outline: 'none',
   },
-  controlError: { borderColor: '#dc2626' },
+  controlError: { borderColor: '#f87171' },
   button: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -45,11 +55,11 @@ const S = {
     transition: 'background-color 120ms ease, border-color 120ms ease, opacity 120ms ease',
   },
   primary: { background: ACCENT, color: '#fff' },
-  secondary: { background: 'rgba(17,17,19,0.06)', color: '#111113', borderColor: 'rgba(17,17,19,0.12)' },
-  secondaryDark: { background: 'rgba(255,255,255,0.1)', color: '#f5f5f7', borderColor: 'rgba(255,255,255,0.2)' },
-  ghost: { background: 'transparent', color: '#4c1d95', borderColor: 'rgba(124,58,237,0.35)' },
+  secondary: { background: 'rgba(255,255,255,0.07)', color: TEXT, borderColor: BORDER_STRONG },
+  secondaryDark: { background: 'rgba(255,255,255,0.1)', color: TEXT, borderColor: 'rgba(255,255,255,0.2)' },
+  ghost: { background: 'transparent', color: '#c4b5fd', borderColor: 'rgba(124,58,237,0.4)' },
   danger: { background: '#b91c1c', color: '#fff' },
-  disabled: { opacity: 0.55, cursor: 'not-allowed' },
+  disabled: { opacity: 0.5, cursor: 'not-allowed' },
   badge: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -70,28 +80,28 @@ const S = {
     textAlign: 'center' as const,
     gap: '0.4rem',
     padding: '2.5rem 1rem',
-    color: 'rgba(17,17,19,0.62)',
+    color: TEXT_FAINT,
   },
   spinner: {
     width: 16,
     height: 16,
     borderRadius: '50%',
-    border: '2px solid rgba(255,255,255,0.35)',
+    border: '2px solid rgba(255,255,255,0.25)',
     borderTopColor: '#fff',
     animation: 'ultorn-spin 700ms linear infinite',
   },
 }
 
 const TONES: Record<string, React.CSSProperties> = {
-  critical: { background: 'rgba(185,28,28,0.12)', color: '#991b1b' },
-  high: { background: 'rgba(194,65,12,0.12)', color: '#9a3412' },
-  medium: { background: 'rgba(161,98,7,0.14)', color: '#854d0e' },
-  low: { background: 'rgba(21,128,61,0.12)', color: '#166534' },
-  success: { background: 'rgba(21,128,61,0.12)', color: '#166534' },
-  warning: { background: 'rgba(161,98,7,0.14)', color: '#854d0e' },
-  danger: { background: 'rgba(185,28,28,0.12)', color: '#991b1b' },
-  neutral: { background: 'rgba(17,17,19,0.07)', color: 'rgba(17,17,19,0.72)' },
-  info: { background: 'rgba(124,58,237,0.12)', color: '#5b21b6' },
+  critical: { background: 'rgba(248,113,113,0.14)', color: '#fca5a5' },
+  high: { background: 'rgba(251,146,60,0.14)', color: '#fdba74' },
+  medium: { background: 'rgba(251,191,36,0.14)', color: '#fcd34d' },
+  low: { background: 'rgba(74,222,128,0.14)', color: '#86efac' },
+  success: { background: 'rgba(74,222,128,0.14)', color: '#86efac' },
+  warning: { background: 'rgba(251,191,36,0.14)', color: '#fcd34d' },
+  danger: { background: 'rgba(248,113,113,0.14)', color: '#fca5a5' },
+  neutral: { background: 'rgba(255,255,255,0.08)', color: TEXT_DIM },
+  info: { background: 'rgba(124,58,237,0.14)', color: '#d8b4fe' },
 }
 
 export function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: string }) {
@@ -241,7 +251,7 @@ export function EmptyState({
 }) {
   return (
     <div style={S.empty}>
-      <strong style={{ color: 'rgba(17,17,19,0.8)' }}>{title}</strong>
+      <strong style={{ color: TEXT }}>{title}</strong>
       {description && <span style={{ fontSize: '0.85rem', maxWidth: 420 }}>{description}</span>}
       {action}
     </div>
@@ -259,7 +269,7 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" style={{ ...S.empty, color: '#991b1b' }}>
+    <div role="alert" style={{ ...S.empty, color: '#fca5a5' }}>
       <strong>Something went wrong</strong>
       <span style={{ fontSize: '0.85rem', maxWidth: 480 }}>{message}</span>
       {onRetry && (
@@ -281,10 +291,10 @@ export function Toast({
   onDismiss: () => void
 }) {
   const bg =
-    tone === 'error' ? 'rgba(220,38,38,0.1)' : tone === 'success' ? 'rgba(21,128,61,0.1)' : 'rgba(124,58,237,0.1)'
-  const color = tone === 'error' ? '#b91c1c' : tone === 'success' ? '#166534' : '#5b21b6'
+    tone === 'error' ? 'rgba(248,113,113,0.12)' : tone === 'success' ? 'rgba(74,222,128,0.12)' : 'rgba(124,58,237,0.14)'
+  const color = tone === 'error' ? '#fca5a5' : tone === 'success' ? '#86efac' : '#d8b4fe'
   const border =
-    tone === 'error' ? 'rgba(220,38,38,0.3)' : tone === 'success' ? 'rgba(21,128,61,0.3)' : 'rgba(124,58,237,0.3)'
+    tone === 'error' ? 'rgba(248,113,113,0.35)' : tone === 'success' ? 'rgba(74,222,128,0.35)' : 'rgba(124,58,237,0.4)'
 
   return (
     <div
@@ -404,16 +414,17 @@ export function ConfirmDialog({
         style={{
           width: '100%',
           maxWidth: 420,
-          background: '#fff',
+          background: SURFACE_RAISED,
+          border: `1px solid ${BORDER}`,
           borderRadius: 18,
           padding: '1.5rem',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
         }}
       >
-        <h2 id={titleId} style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#111113' }}>
+        <h2 id={titleId} style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: TEXT }}>
           {title}
         </h2>
-        <p id={descId} style={{ fontSize: '0.9rem', color: 'rgba(17,17,19,0.65)', marginBottom: '1.25rem' }}>
+        <p id={descId} style={{ fontSize: '0.9rem', color: TEXT_DIM, marginBottom: '1.25rem' }}>
           {description}
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>

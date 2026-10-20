@@ -8,8 +8,24 @@ import { Button, ConfirmDialog, Field, Select, TextInput, Textarea, Toast } from
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const ACCENT = '#7c3aed'
+const ACCENT_BRIGHT = '#a78bfa'
 const ACCENT_SOFT = 'rgba(124,58,237,0.12)'
 const ACCENT_BORDER = 'rgba(124,58,237,0.3)'
+
+// Operator-console surface system: one dark, high-contrast workspace rather
+// than the old light-chrome-with-dark-panels split, closer to the register
+// of an operations/intel tool than a marketing page. The pre-auth login
+// screen intentionally keeps its own (marketing-brand) look.
+const BG = '#07070a'
+const SURFACE = '#0e0e12'
+const SURFACE_RAISED = '#15151b'
+const SURFACE_SUNKEN = 'rgba(255,255,255,0.035)'
+const BORDER = 'rgba(255,255,255,0.08)'
+const BORDER_STRONG = 'rgba(255,255,255,0.14)'
+const TEXT = '#f4f4f6'
+const TEXT_DIM = 'rgba(244,244,246,0.64)'
+const TEXT_FAINT = 'rgba(244,244,246,0.42)'
+const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
@@ -129,7 +145,7 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
         rel="stylesheet"
       />
       <div className="login-card">
@@ -338,7 +354,7 @@ function StatCard({
   emphasis?: boolean
 }) {
   const valueColor =
-    tone === 'danger' ? '#b91c1c' : tone === 'warning' ? '#92400e' : tone === 'success' ? '#166534' : '#111113'
+    tone === 'danger' ? '#f87171' : tone === 'warning' ? '#fbbf24' : tone === 'success' ? '#4ade80' : TEXT
   return (
     <div style={{ ...styles.statCard, ...(emphasis ? styles.statCardEmphasis : {}) }}>
       <div style={styles.statLabel}>{label}</div>
@@ -668,7 +684,7 @@ function Page() {
           <span className="sidebar-label">Back to landing page</span>
         </a>
 
-        <div style={styles.sidebarNavScroll}>
+        <div style={styles.sidebarNavScroll} className="console-scroll">
           {NAV_GROUPS.map((group) => (
             <nav key={group.label} aria-label={`${group.label} navigation`} style={styles.sidebarNav}>
               <div className="sidebar-group-label" style={styles.sidebarGroupLabel} aria-hidden="true">{group.label}</div>
@@ -2071,14 +2087,14 @@ function AlertsSection({ ctx }: { ctx: any }) {
                 </tr>
               )}
               {alerts.map((a: any) => (
-                <tr key={a.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                <tr key={a.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                   <td style={styles.td}>
                     <div>{a.title}</div>
-                    {a.description && <div style={{ fontSize: '0.78rem', color: 'rgba(17,17,19,0.62)' }}>{a.description}</div>}
+                    {a.description && <div style={{ fontSize: '0.78rem', color: TEXT_DIM }}>{a.description}</div>}
                   </td>
                   <td style={styles.td}><Badge tone={severityTone(a.severity)}>{a.severity}</Badge></td>
                   <td style={styles.td}>{a.status.replace('_', ' ')}</td>
-                  <td style={{ ...styles.td, fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                  <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>{new Date(a.created_at).toLocaleString()}</td>
                   <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {a.status === 'open' && (
                       <button
@@ -2273,11 +2289,11 @@ function SchedulesSection({ ctx }: { ctx: any }) {
                 <tr><td colSpan={5} style={styles.tdEmpty}>No schedules yet. Create one above to run scans automatically.</td></tr>
               )}
               {schedules.map((s: any) => (
-                <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                   <td style={styles.td}>{s.client?.name || s.client_id}</td>
                   <td style={styles.td}>{s.scan_type}</td>
                   <td style={styles.td}>{humanInterval(s.interval_minutes)}</td>
-                  <td style={{ ...styles.td, fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)' }}>
+                  <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>
                     {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
                   </td>
                   <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -2428,7 +2444,7 @@ function CodeScansSection({ ctx }: { ctx: any }) {
                 <tr><td colSpan={5} style={styles.tdEmpty}>No code scans yet. Scan a repository above to get started.</td></tr>
               )}
               {codeScans.map((s: any) => (
-                <tr key={s.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                   <td style={styles.td}>{s.repository_url || '-'}</td>
                   <td style={styles.td}>{s.branch}</td>
                   <td style={styles.td}><Badge tone={s.status === 'completed' ? 'success' : 'warning'}>{s.status}</Badge></td>
@@ -2527,7 +2543,7 @@ function ComplianceSection({ ctx }: { ctx: any }) {
           </div>
           <Button onClick={runSummary}>Run summary</Button>
           {summary && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.04)', borderRadius: '12px' }}>
+            <div style={{ marginTop: '1rem', padding: '1rem', background: SURFACE_SUNKEN, borderRadius: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
                 <div><div style={styles.statLabel}>Critical Findings</div><div style={styles.statValue}>{summary.critical}</div></div>
                 <div><div style={styles.statLabel}>Reporting Required</div><div style={styles.statValue}>{summary.reporting_required ? 'Yes' : 'No'}</div></div>
@@ -2536,7 +2552,7 @@ function ComplianceSection({ ctx }: { ctx: any }) {
               <p style={styles.mutedText}>{summary.framework}</p>
               <p style={styles.mutedText}>Sector: {summary.client_sector}</p>
               <div style={styles.detailLabelLight}>Next Steps</div>
-              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
+              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
                 {summary.next_steps.map((s: string) => <li key={s}>{s}</li>)}
               </ul>
             </div>
@@ -2637,15 +2653,15 @@ function ReportsSection({ ctx }: { ctx: any }) {
             <div style={styles.detailLabelLight}>Executive Summary</div>
             <p style={styles.mutedText}>{report.executive_summary}</p>
             <div style={styles.detailLabelLight}>Plain Language</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
               {report.plain_language.map((p: string) => <li key={p}>{p}</li>)}
             </ul>
             <div style={styles.detailLabelLight}>Recommendations</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
               {report.recommendations.map((r: string) => <li key={r}>{r}</li>)}
             </ul>
             <div style={styles.detailLabelLight}>Compliance Mappings</div>
-            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: 'rgba(17,17,19,0.75)' }}>
+            <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
               {report.compliance_mappings.map((m: any) => (
                 <li key={m.law_article}>
                   <strong>{m.law_article}:</strong> {m.action_required}
@@ -2674,15 +2690,16 @@ const styles: any = {
   shell: {
     display: 'flex',
     minHeight: '100vh',
-    background: '#f5f5f7',
-    color: '#111113',
+    background: BG,
+    color: TEXT,
     fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
   sidebar: {
-    background: '#111113',
-    color: '#f5f5f7',
+    background: '#0a0a0d',
+    color: TEXT,
     display: 'flex',
     flexDirection: 'column',
+    borderRight: `1px solid ${BORDER}`,
   },
   sidebarBrand: { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '1.5rem 1.25rem 1.25rem' },
   navBrandLogo: { height: '24px', width: 'auto' },
@@ -2735,29 +2752,30 @@ const styles: any = {
   },
   main: { flex: 1, padding: '2rem', maxWidth: '1180px', margin: '0 auto', width: '100%', boxSizing: 'border-box' },
   section: {},
-  pageTitle: { fontSize: '1.75rem', fontWeight: '600', margin: '0 0 1.25rem', color: '#111113', letterSpacing: '-0.01em' },
-  hint: { color: 'rgba(17,17,19,0.68)', fontSize: '0.9rem', marginBottom: '1rem' },
+  pageTitle: { fontSize: '1.9rem', fontWeight: '700', margin: '0 0 1.25rem', color: TEXT, letterSpacing: '-0.02em' },
+  hint: { color: TEXT_DIM, fontSize: '0.9rem', marginBottom: '1rem' },
 
-  // Light stat tiles
+  // Stat tiles: dark, slightly raised surfaces with a tabular-numeral,
+  // monospace value for that instrument-panel feel.
   statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' },
   statCard: {
-    background: 'rgba(255,255,255,0.8)',
-    border: '1px solid rgba(0,0,0,0.06)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-    borderRadius: '18px',
+    background: SURFACE,
+    border: `1px solid ${BORDER}`,
+    boxShadow: '0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 28px rgba(0,0,0,0.3)',
+    borderRadius: '16px',
     padding: '1.25rem',
   },
   statCardEmphasis: {
-    borderTop: `3px solid ${ACCENT_BORDER}`,
-    boxShadow: '0 6px 24px rgba(17,17,19,0.05)',
+    borderColor: ACCENT_BORDER,
+    boxShadow: `0 0 0 1px ${ACCENT_BORDER} inset, 0 16px 36px rgba(124,58,237,0.12)`,
   },
-  statLabel: { fontSize: '0.8rem', color: 'rgba(17,17,19,0.62)', marginBottom: '0.4rem' },
-  statValue: { fontSize: '1.9rem', fontWeight: '700', color: '#111113' },
-  statHint: { fontSize: '0.78rem', color: 'rgba(17,17,19,0.58)', marginTop: '0.3rem' },
+  statLabel: { fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', color: TEXT_FAINT, marginBottom: '0.5rem' },
+  statValue: { fontSize: '2rem', fontWeight: '700', color: TEXT, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' },
+  statHint: { fontSize: '0.78rem', color: TEXT_FAINT, marginTop: '0.35rem' },
   skeleton: {
     height: '118px',
-    borderRadius: '18px',
-    background: 'linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.09), rgba(0,0,0,0.05))',
+    borderRadius: '16px',
+    background: 'linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.07), rgba(255,255,255,0.03))',
     backgroundSize: '200% 100%',
     animation: 'ultorn-sheen 1.4s ease-in-out infinite',
   },
@@ -2765,37 +2783,38 @@ const styles: any = {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
     gap: '0.75rem',
-    background: 'rgba(255,255,255,0.65)',
-    border: '1px solid rgba(0,0,0,0.06)',
-    borderRadius: '18px',
+    background: SURFACE,
+    border: `1px solid ${BORDER}`,
+    borderRadius: '16px',
     padding: '0.9rem 1.1rem',
     marginBottom: '1.25rem',
   },
-  metricItem: { display: 'flex', flexDirection: 'column', gap: '0.1rem' },
-  metricValue: { fontSize: '1.15rem', fontWeight: 700, color: '#111113' },
-  metricLabel: { fontSize: '0.75rem', color: 'rgba(17,17,19,0.6)' },
+  metricItem: { display: 'flex', flexDirection: 'column', gap: '0.15rem' },
+  metricValue: { fontSize: '1.2rem', fontWeight: 700, color: TEXT, fontFamily: MONO, fontVariantNumeric: 'tabular-nums' },
+  metricLabel: { fontSize: '0.74rem', color: TEXT_FAINT },
 
-  // Two-up dark panels on the dashboard
+  // Two-up panels on the dashboard
   split: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' },
   tableWrap: { overflowX: 'auto' as const, WebkitOverflowScrolling: 'touch' as const, maxWidth: '100%' },
 
-  // Light card (AI Guard, misc)
+  // General-purpose card (AI Guard, misc)
   lightCard: {
-    background: 'rgba(255,255,255,0.8)',
-    border: '1px solid rgba(0,0,0,0.06)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-    borderRadius: '18px',
+    background: SURFACE,
+    border: `1px solid ${BORDER}`,
+    boxShadow: '0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 28px rgba(0,0,0,0.3)',
+    borderRadius: '16px',
     padding: '1.5rem',
     margin: '1rem 0',
   },
-  h3: { fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.6rem', color: '#111113' },
-  detailLabel: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)', marginTop: '1.1rem', marginBottom: '0.5rem' },
+  h3: { fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.6rem', color: TEXT },
+  detailLabel: { fontSize: '0.74rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEXT_FAINT, marginTop: '1.1rem', marginBottom: '0.5rem' },
 
-  // Dark glass "focus panel": the split list/detail workspace
+  // Elevated "focus panel": the split list/detail workspace
   panelDark: {
-    background: '#16161a',
-    borderRadius: '24px',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: SURFACE_RAISED,
+    borderRadius: '18px',
+    border: `1px solid ${BORDER}`,
+    boxShadow: '0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 44px rgba(0,0,0,0.35)',
     overflow: 'hidden',
   },
   panelHeader: {
@@ -2819,47 +2838,49 @@ const styles: any = {
     justifyContent: 'space-between',
     gap: '0.75rem',
     padding: '0.85rem 0.9rem',
-    borderRadius: '14px',
+    borderRadius: '12px',
     cursor: 'pointer',
     marginBottom: '2px',
+    border: '1px solid transparent',
   },
-  listRowActive: { background: ACCENT_SOFT },
+  listRowActive: { background: ACCENT_SOFT, borderColor: ACCENT_BORDER },
   listRowMain: { minWidth: 0 },
-  listRowTitle: { fontSize: '0.9rem', fontWeight: 600, color: '#f5f5f7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  listRowSub: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' },
-  emptyState: { padding: '2rem 1rem', textAlign: 'center', color: 'rgba(255,255,255,0.58)', fontSize: '0.88rem' },
+  listRowTitle: { fontSize: '0.9rem', fontWeight: 600, color: TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  listRowSub: { fontSize: '0.78rem', color: TEXT_DIM },
+  emptyState: { padding: '2rem 1rem', textAlign: 'center', color: TEXT_FAINT, fontSize: '0.88rem' },
 
-  detailHeading: { fontSize: '1.25rem', fontWeight: 600, color: '#f5f5f7' },
-  detailSub: { fontSize: '0.85rem', color: 'rgba(255,255,255,0.68)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+  detailHeading: { fontSize: '1.3rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' },
+  detailSub: { fontSize: '0.85rem', color: TEXT_DIM, marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
 
   subCardGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginTop: '1.25rem' },
-  subCard: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '0.85rem' },
-  subCardLabel: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' },
-  subCardValue: { fontSize: '1.2rem', fontWeight: 700, color: '#f5f5f7' },
+  subCard: { background: SURFACE_SUNKEN, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '0.85rem' },
+  subCardLabel: { fontSize: '0.72rem', color: TEXT_FAINT, marginBottom: '0.35rem' },
+  subCardValue: { fontSize: '1.2rem', fontWeight: 700, color: TEXT, fontFamily: MONO },
 
-  scopeRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem', color: '#e5e7eb' },
+  scopeRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: `1px solid ${BORDER}`, fontSize: '0.85rem', color: TEXT },
 
-  auditRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem' },
+  auditRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 0', borderTop: `1px solid ${BORDER}`, fontSize: '0.85rem' },
 
-  // Light-surface counterparts (used inside light cards; the dark versions
-  // render white text and would be unreadable on white).
+  // Table/typography tokens used throughout; everything in the console is
+  // now one dark surface, so these no longer need a separate "light"
+  // counterpart the way they did when stat tiles/cards sat on a light page.
   th: {
     padding: '0.75rem 0',
-    fontSize: '0.75rem',
+    fontSize: '0.72rem',
     fontWeight: 600,
-    color: 'rgba(17,17,19,0.62)',
+    color: TEXT_FAINT,
     textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
+    letterSpacing: '0.06em',
   },
-  td: { padding: '0.75rem 0', verticalAlign: 'top' as const },
-  tdEmpty: { padding: '2rem 0', color: 'rgba(17,17,19,0.62)', textAlign: 'center' as const },
-  mutedText: { fontSize: '0.85rem', color: 'rgba(17,17,19,0.68)' },
+  td: { padding: '0.75rem 0', verticalAlign: 'top' as const, color: TEXT },
+  tdEmpty: { padding: '2rem 0', color: TEXT_FAINT, textAlign: 'center' as const },
+  mutedText: { fontSize: '0.85rem', color: TEXT_DIM },
   detailLabelLight: {
-    fontSize: '0.75rem',
+    fontSize: '0.74rem',
     fontWeight: 600,
-    letterSpacing: '0.04em',
+    letterSpacing: '0.06em',
     textTransform: 'uppercase' as const,
-    color: 'rgba(17,17,19,0.6)',
+    color: TEXT_FAINT,
     marginTop: '1.1rem',
     marginBottom: '0.5rem',
   },
@@ -2869,19 +2890,19 @@ const styles: any = {
     justifyContent: 'space-between',
     gap: '0.75rem',
     padding: '0.7rem 0',
-    borderTop: '1px solid rgba(0,0,0,0.08)',
+    borderTop: `1px solid ${BORDER}`,
     fontSize: '0.85rem',
-    color: '#111113',
+    color: TEXT,
   },
 
   badge: { display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' },
 
   darkActionBtn: {
-    background: '#fdfdfd',
+    background: TEXT,
     color: '#050505',
     border: 'none',
     padding: '0.5rem 1.1rem',
-    borderRadius: '999px',
+    borderRadius: '10px',
     fontWeight: 600,
     cursor: 'pointer',
     fontSize: '0.82rem',
@@ -2891,37 +2912,38 @@ const styles: any = {
   form: { display: 'flex', flexDirection: 'column', gap: '0.9rem' },
   input: {
     padding: '0.7rem 0.9rem',
-    background: 'rgba(0,0,0,0.04)',
-    border: '1px solid rgba(0,0,0,0.1)',
+    background: 'rgba(255,255,255,0.05)',
+    border: `1px solid ${BORDER_STRONG}`,
     borderRadius: '10px',
     fontSize: '0.95rem',
-    color: 'inherit',
+    color: TEXT,
     width: '100%',
     boxSizing: 'border-box',
   },
   inputSmall: {
     padding: '0.4rem 0.6rem',
-    background: 'rgba(0,0,0,0.04)',
-    border: '1px solid rgba(0,0,0,0.1)',
+    background: 'rgba(255,255,255,0.05)',
+    border: `1px solid ${BORDER_STRONG}`,
     borderRadius: '8px',
     fontSize: '0.9rem',
+    color: TEXT,
   },
   button: {
     background: ACCENT,
     color: '#fff',
     border: 'none',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '999px',
+    padding: '0.72rem 1.4rem',
+    borderRadius: '10px',
     fontWeight: '600',
     cursor: 'pointer',
     fontSize: '0.9rem',
   },
   buttonGhostLight: {
-    background: 'rgba(0,0,0,0.05)',
-    color: '#111113',
-    border: '1px solid rgba(0,0,0,0.1)',
-    padding: '0.6rem 1.2rem',
-    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.06)',
+    color: TEXT,
+    border: `1px solid ${BORDER_STRONG}`,
+    padding: '0.58rem 1.15rem',
+    borderRadius: '10px',
     fontWeight: '600',
     cursor: 'pointer',
     fontSize: '0.85rem',
@@ -2936,26 +2958,26 @@ const styles: any = {
     cursor: 'pointer',
     fontSize: '0.78rem',
   },
-  alert: { padding: '0.75rem 1rem', borderRadius: '14px', marginBottom: '1rem', fontSize: '0.9rem' },
+  alert: { padding: '0.75rem 1rem', borderRadius: '12px', marginBottom: '1rem', fontSize: '0.9rem' },
   codeBlock: {
-    background: 'rgba(0,0,0,0.3)',
+    background: 'rgba(0,0,0,0.35)',
     color: '#d8b4fe',
     padding: '1rem',
-    borderRadius: '12px',
-    fontFamily: 'monospace',
+    borderRadius: '10px',
+    fontFamily: MONO,
     fontSize: '0.8rem',
     overflowX: 'auto',
     whiteSpace: 'pre-wrap',
-    border: '1px solid rgba(255,255,255,0.08)',
+    border: `1px solid ${BORDER}`,
   },
-  checkboxLabel: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'rgba(17,17,19,0.6)' },
+  checkboxLabel: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: TEXT_DIM },
   textarea: {
     padding: '0.7rem 0.9rem',
-    background: 'rgba(0,0,0,0.04)',
-    border: '1px solid rgba(0,0,0,0.1)',
+    background: 'rgba(255,255,255,0.05)',
+    border: `1px solid ${BORDER_STRONG}`,
     borderRadius: '10px',
     fontSize: '0.95rem',
-    color: 'inherit',
+    color: TEXT,
     width: '100%',
     boxSizing: 'border-box',
     fontFamily: 'inherit',

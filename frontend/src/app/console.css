@@ -91,10 +91,10 @@
     position: sticky;
     top: 0;
     z-index: 60;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(7, 7, 10, 0.92);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding: 0.85rem 1rem;
   }
 
@@ -154,8 +154,8 @@
 }
 
 .sidebar-burger {
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   width: 36px;
   height: 36px;
   border-radius: 10px;
@@ -163,7 +163,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #111113;
+  color: #f4f4f6;
   flex: 0 0 auto;
 }
 
@@ -197,6 +197,36 @@
 }
 .sidebar-link {
   min-height: 42px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.055);
+  color: #f4f4f6;
+}
+
+/* Thin, unobtrusive scrollbars for the dark workspace -- the default
+   browser scrollbar reads as an unstyled light-mode leftover here. */
+.console-scroll,
+.split-panel-list,
+.split-panel-detail {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.console-scroll::-webkit-scrollbar,
+.split-panel-list::-webkit-scrollbar,
+.split-panel-detail::-webkit-scrollbar {
+  width: 8px;
+}
+.console-scroll::-webkit-scrollbar-thumb,
+.split-panel-list::-webkit-scrollbar-thumb,
+.split-panel-detail::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+.console-scroll::-webkit-scrollbar-thumb:hover,
+.split-panel-list::-webkit-scrollbar-thumb:hover,
+.split-panel-detail::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 .sidebar-home {
   text-decoration: none;
