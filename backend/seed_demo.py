@@ -25,30 +25,6 @@ from app.database import Base, SessionLocal, engine
 
 DEMO_CLIENTS = ["Sahel Bank", "Sonatel Mobile"]
 
-# One-click "try it" personas for the login screen's demo buttons. Like the
-# rest of this script, they only exist if an operator explicitly runs
-# `python seed_demo.py` -- a real deployment that never runs it never has them.
-DEMO_ACCOUNTS = [
-    {
-        "email": "admin@ultorn.local",
-        "password": "admin123",
-        "full_name": "Platform Admin",
-        "role": "admin",
-    },
-    {
-        "email": "analyst-demo@ultorn.local",
-        "password": "demo-analyst-123",
-        "full_name": "Demo Analyst",
-        "role": "analyst",
-    },
-    {
-        "email": "client-demo@sahelbank.sn",
-        "password": "demo-client-123",
-        "full_name": "Sahel Bank Security Team",
-        "role": "client",
-    },
-]
-
 
 def _findings_for(bank: bool):
     if bank:
@@ -126,47 +102,27 @@ def _delete_demo(db):
     db.commit()
 
 
-def _ensure_demo_accounts(db) -> dict:
-    """Create (or update the role of) each one-click demo persona. Idempotent
-    and run on every invocation -- independent of whether the demo clients
-    below already exist, so re-running the script after an upgrade still
-    backfills any new persona."""
-    users = {}
-    for account in DEMO_ACCOUNTS:
-        user = db.query(models.User).filter(models.User.email == account["email"]).first()
-        if not user:
-            user = models.User(
-                email=account["email"],
-                hashed_password=get_password_hash(account["password"]),
-                full_name=account["full_name"],
-                role=models.UserRole(account["role"]),
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        users[account["email"]] = user
-    return users
-
-
 def seed(reset: bool = False) -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        demo_users = _ensure_demo_accounts(db)
-        admin = demo_users["admin@ultorn.local"]
-        client_demo_user = demo_users["client-demo@sahelbank.sn"]
+        admin = db.query(models.User).filter(models.User.email == "admin@ultorn.local").first()
+        if not admin:
+            admin = models.User(
+                email="admin@ultorn.local",
+                hashed_password=get_password_hash("admin123"),
+                full_name="Platform Admin",
+                role=models.UserRole.admin,
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
 
         if reset:
             _delete_demo(db)
 
         existing = {c.name for c in db.query(models.Client).filter(models.Client.name.in_(DEMO_CLIENTS)).all()}
         if len(existing) == len(DEMO_CLIENTS):
-            # Backfill: an older demo DB may still have Sahel Bank owned by
-            # admin from before the client-demo persona existed.
-            bank = db.query(models.Client).filter(models.Client.name == "Sahel Bank").first()
-            if bank and bank.owner_id != client_demo_user.id:
-                bank.owner_id = client_demo_user.id
-                db.commit()
             print("Demo data already present. Use --reset to rebuild it.")
             return
 
@@ -177,7 +133,7 @@ def seed(reset: bool = False) -> None:
                 legal_name="Sahel Bank SA",
                 contact_email="security@sahelbank.sn",
                 contact_phone="+221 33 000 0000",
-                owner_id=client_demo_user.id,
+                owner_id=admin.id,
             )
             db.add(bank)
             db.flush()
@@ -325,9 +281,7 @@ def seed(reset: bool = False) -> None:
 
         db.commit()
         print("Seeded demo clients:", ", ".join(DEMO_CLIENTS))
-        print("Demo accounts (also usable from the console login screen's 'Try a demo' buttons):")
-        for account in DEMO_ACCOUNTS:
-            print(f"  {account['role']:<8} {account['email']} / {account['password']}")
+        print("Login: admin@ultorn.local / admin123")
     finally:
         db.close()
 

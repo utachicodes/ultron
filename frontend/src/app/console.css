@@ -168,65 +168,6 @@
 }
 
 /* ============================================================
-   Demo accounts (login screen)
-   ============================================================ */
-.demo-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 1.1rem 0 0.9rem;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.demo-divider::before,
-.demo-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.demo-accounts {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.demo-account-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
-  width: 100%;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 0.65rem 0.9rem;
-  cursor: pointer;
-  color: #f4f4f6;
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-.demo-account-btn:hover:not(:disabled) {
-  background: rgba(124, 58, 237, 0.12);
-  border-color: rgba(124, 58, 237, 0.4);
-}
-.demo-account-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.demo-account-role {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.demo-account-blurb {
-  font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.58);
-}
-
-/* ============================================================
    Interaction basics: visible focus, target sizes, motion
    ============================================================ */
 

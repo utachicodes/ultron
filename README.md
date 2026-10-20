@@ -70,14 +70,11 @@ The API will be at `http://localhost:8000`. Interactive docs at `http://localhos
 Default admin: `admin@ultorn.local` / `admin123` — change it from **Change password**
 in the console sidebar immediately after first sign-in.
 
-Optional demo data (two clients, findings, monitors, alerts, a code scan),
-plus three one-click demo personas (Admin, Analyst, and a Client scoped to
-just one of the demo clients) that appear as buttons on the console login
-screen and drop straight into a guided tour of the console:
+Optional demo data (two clients, findings, monitors, alerts, a code scan):
 
 ```bash
 cd backend
-python seed_demo.py          # add demo data + demo accounts
+python seed_demo.py          # add demo data
 python seed_demo.py --reset  # rebuild it
 ```
 
