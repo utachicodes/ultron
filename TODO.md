@@ -89,7 +89,9 @@ as items are picked up or completed. It's the source of truth for "what's left."
       CI currently only checks that each side imports/builds, not behavior
 
 ### Product
-- [ ] Self-service client registration flow (today only `/auth/register` exists, no UI signup)
+- [x] Self-service client registration flow: `/signup` page (register, then auto-login and
+      redirect to `/console`); the landing page's "Get Started" CTAs now point there instead
+      of straight to the login screen
 - [x] Self-service forgot-password flow: `POST /auth/forgot-password` issues a single-use,
       time-boxed token (`PasswordResetToken`, hashed at rest, previous tokens invalidated on
       re-request); `POST /auth/reset-password` redeems it. No SMTP provider is wired up yet, so

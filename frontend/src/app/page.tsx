@@ -338,7 +338,7 @@ export default function LandingPage() {
 
           <div className="nav-actions">
             <a href="/console" className="btn btn-login">Login</a>
-            <a href="/console" className="btn btn-nav-start">
+            <a href="/signup" className="btn btn-nav-start">
               Get Started {ARROW}
             </a>
           </div>
@@ -373,7 +373,7 @@ export default function LandingPage() {
             Every byte stays exactly where it belongs.
           </p>
           <div className="ctas">
-            <a href="/console" className="btn btn-lg btn-primary">
+            <a href="/signup" className="btn btn-lg btn-primary">
               Get Started {ARROW}
             </a>
             <a href="/contact" className="btn btn-lg btn-ghost">

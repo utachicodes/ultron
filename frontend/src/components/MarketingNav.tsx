@@ -26,7 +26,7 @@ export default function MarketingNav({ current }: { current?: string }) {
 
         <div className="mnav-actions">
           <a href="/console" className="mbtn mbtn-login">Login</a>
-          <a href="/console" className="mbtn mbtn-start">
+          <a href="/signup" className="mbtn mbtn-start">
             Get Started <Arrow />
           </a>
         </div>
@@ -48,7 +48,7 @@ export default function MarketingNav({ current }: { current?: string }) {
         ))}
         <div className="mdivider" />
         <a href="/console" onClick={() => setOpen(false)}>Login</a>
-        <a href="/console" className="mstart" onClick={() => setOpen(false)}>
+        <a href="/signup" className="mstart" onClick={() => setOpen(false)}>
           Get Started <Arrow />
         </a>
       </div>
