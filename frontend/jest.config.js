@@ -10,7 +10,9 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
-  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
+  // e2e/ holds Playwright specs (run via `npm run test:e2e`), not Jest ones --
+  // they'd otherwise match Jest's default *.spec.ts pattern and fail to import.
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/', '<rootDir>/e2e/'],
 }
 
 // createJestConfig is exported this way to ensure next/jest can load the Next.js config, which is async

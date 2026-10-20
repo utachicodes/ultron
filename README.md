@@ -172,6 +172,44 @@ It covers auth (including the no-self-admin-registration rule and login rate lim
 clients/scans/findings/reports, monitors and alerts, code scanning, compliance mapping,
 sanitization, and AI routing.
 
+```bash
+cd frontend
+npm test            # Jest smoke tests (mocked API, no backend needed)
+npm run test:e2e    # Playwright, drives a real browser against a real running stack
+```
+
+`test:e2e` needs the backend and frontend actually running, with demo data
+seeded (`python seed_demo.py`) -- see `frontend/e2e/README.md` for the full
+setup and what each spec covers: the marketing nav, signup, each demo
+persona's role-gated UI (this is also where the client-persona dashboard
+RBAC regression lives), and the AI Guard flow.
+
+### Testing the AI flow with a free, open-source model
+
+`AI_PROVIDER=anthropic`/`openai` need a paid API key, and `AI_PROVIDER=local`
+is pattern-matched canned text, not a model. To exercise the AI Guard flow
+end to end with a real model and no API key, run a local one via
+[Ollama](https://ollama.com):
+
+```bash
+ollama serve &
+ollama pull llama3.2
+```
+
+Then in `backend/.env`:
+
+```
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+```
+
+Restart the backend and submit a prompt from AI Guard in the console (or run
+`E2E_OLLAMA=1 npm run test:e2e -- ai-guard.spec.ts` from `frontend/`). Prompts
+that still look sensitive after sanitization (or that set "Force local
+processing") still never reach Ollama or anywhere else -- they get the
+rule-based `local` response regardless of `AI_PROVIDER`.
+
 ## File Layout
 
 ```

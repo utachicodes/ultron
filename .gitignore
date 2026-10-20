@@ -14,6 +14,11 @@ frontend/npm-debug.log*
 frontend/tsconfig.tsbuildinfo
 *.tsbuildinfo
 
+# Playwright E2E output
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+
 # Editors / OS / local tooling
 .DS_Store
 .vscode/
