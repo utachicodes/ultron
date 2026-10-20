@@ -1,4 +1,13 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     build: ./backend
     ports:
@@ -12,18 +21,46 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - SCANNER_TIMEOUT=300
-      # Exactly one process should own the scheduler.
+      # Exactly one process should own the scheduler loop (it only decides
+      # when work is due and enqueues it; the `worker` service runs it).
       - ENABLE_SCHEDULER=true
+      - REDIS_URL=redis://redis:6379/0
       - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-}
       - ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET:-}
     volumes:
       - ultorn_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    command: celery -A app.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=sqlite:////data/ultorn.db
+      - SECRET_KEY=${SECRET_KEY:-}
+      - AI_PROVIDER=${AI_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SCANNER_TIMEOUT=300
+      # The scheduler loop (in `api`) only enqueues work; this process
+      # executes it, and can be scaled to multiple replicas independently.
+      - ENABLE_SCHEDULER=false
+      - REDIS_URL=redis://redis:6379/0
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-}
+      - ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET:-}
+    volumes:
+      - ultorn_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:

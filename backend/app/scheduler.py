@@ -5,6 +5,11 @@ from __future__ import annotations
 The `schedule` library keeps a process-global job registry, so every job is
 tagged with its resource id. Re-scheduling a resource replaces its previous
 job instead of stacking duplicates.
+
+This loop only decides *when* a job is due; it enqueues the actual work onto
+Celery (see `app.tasks`) instead of running it inline, so running several API
+replicas never fires the same monitor check or scan twice. See
+`app/celery_app.py` for the eager-mode note used in tests.
 """
 
 import threading
@@ -12,7 +17,7 @@ import time
 
 import schedule
 
-from app.worker import process_monitor_check, process_scheduled_scan
+from app.tasks import check_monitor, run_scheduled_scan
 
 _scheduler_thread: threading.Thread | None = None
 _started = False
@@ -33,7 +38,7 @@ def schedule_monitor(monitor_id: int, interval_minutes: int = 60) -> None:
         schedule.cancel_job(existing)
 
     schedule.every(interval_minutes).minutes.do(
-        process_monitor_check, monitor_id=monitor_id
+        lambda: check_monitor.delay(monitor_id=monitor_id)
     ).tag(tag)
 
 
@@ -49,7 +54,7 @@ def schedule_scan(schedule_id: int, interval_minutes: int = 1440) -> None:
         schedule.cancel_job(existing)
 
     schedule.every(interval_minutes).minutes.do(
-        process_scheduled_scan, schedule_id=schedule_id
+        lambda: run_scheduled_scan.delay(schedule_id=schedule_id)
     ).tag(tag)
 
 

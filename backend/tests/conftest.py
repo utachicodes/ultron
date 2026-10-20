@@ -16,6 +16,9 @@ _tmpdir = tempfile.mkdtemp(prefix="ultorn-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmpdir}/test.db"
 os.environ["ENABLE_SCHEDULER"] = "false"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+# No Redis/worker in the test environment: run Celery tasks inline instead
+# of enqueuing them, so `.delay()` behaves like a plain function call.
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "true"
 
 from fastapi.testclient import TestClient  # noqa: E402
 

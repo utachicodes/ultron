@@ -51,6 +51,27 @@ def test_bootstrap_schedules_active_monitors(client, sample_client):
     assert len(schedule.get_jobs(f"monitor-{paused['id']}")) == 0
 
 
+def test_scheduled_monitor_check_runs_through_the_celery_task(client, sample_client):
+    """The job the `schedule` library fires enqueues a Celery task rather than
+    running the check inline; with CELERY_TASK_ALWAYS_EAGER it still executes
+    synchronously, so one scheduler tick still produces an alert."""
+    monitor = client.post(
+        "/monitors",
+        json={
+            "target": "http://127.0.0.1:9/nope",
+            "monitor_type": "access_anomaly",
+            "client_id": sample_client["id"],
+        },
+    ).json()
+
+    scheduler.schedule_monitor(monitor["id"], interval_minutes=1)
+    job = schedule.get_jobs(f"monitor-{monitor['id']}")[0]
+    eager_result = job.run()
+
+    assert eager_result.result == 1
+    assert client.get(f"/monitors/{monitor['id']}/alerts").json()[0]["title"]
+
+
 def test_paused_monitor_skipped_by_scheduler_logic(client, sample_client, db):
     from app import worker
 

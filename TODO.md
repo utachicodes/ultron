@@ -68,8 +68,17 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Secrets: random `SECRET_KEY` generated on first boot (`backend/.secret_key`, chmod 600)
 - [x] Scheduler wired into startup; idempotent per-monitor jobs; `ENABLE_SCHEDULER=false` opt-out
 - [x] Shared `worker.process_monitor_check` for scheduled and manual checks
-- [ ] Replace the in-process scheduler with a real queue (Celery/Redis) for multi-replica deploys
-- [ ] Postgres option for `DATABASE_URL` in production (SQLite is fine for MVP/single-node only)
+- [x] Replace the in-process scheduler with a real queue (Celery/Redis) for multi-replica
+      deploys: the `schedule`-library loop still decides *when* a monitor check or scheduled
+      scan is due, but now enqueues it (`app/tasks.py`) onto Celery instead of running it
+      inline, so N API replicas never duplicate the same run. A separate `worker` service
+      (`celery -A app.celery_app worker`, see `docker-compose.yml`) executes it and can be
+      scaled independently. Manual "run now" actions from the API still call the plain
+      functions in `worker.py` directly/synchronously. Tests set
+      `CELERY_TASK_ALWAYS_EAGER=true` so `.delay()` runs inline with no Redis needed.
+- [x] Postgres option for `DATABASE_URL` in production: `psycopg2-binary` added to
+      `requirements.txt` (SQLite remains the default for MVP/single-node; `database.py`
+      already branches its `connect_args` on the URL scheme)
 
 ### Tests
 - [x] Backend: pytest suite for auth, credential rotation, disabled-account enforcement,

@@ -69,7 +69,7 @@ def process_scan(scan_id: int):
 
 
 if __name__ == "__main__":
-    print("Ultorn worker ready. Run with: celery -A app.worker worker --loglevel=info")
+    print("Ultorn worker ready. Run with: celery -A app.celery_app worker --loglevel=info")
 
 
 def execute_scan(db, scan, user_id: int | None = None) -> dict:
