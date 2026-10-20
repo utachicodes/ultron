@@ -78,6 +78,19 @@ class Settings(BaseSettings):
     alert_webhook_url: str = ""
     alert_webhook_secret: str = ""
 
+    # Background queue: periodic scheduler ticks enqueue work here instead of
+    # running it in-process, so multiple API replicas never duplicate a run.
+    # A separate `celery -A app.celery_app worker` process executes it.
+    redis_url: str = "redis://localhost:6379/0"
+    celery_task_always_eager: bool = False
+
+    # Password reset
+    password_reset_token_expire_minutes: int = 30
+
+    # Finding evidence attachments
+    attachment_storage_dir: str = "./attachments"
+    attachment_max_size_mb: int = 10
+
     class Config:
         env_file = ".env"
 

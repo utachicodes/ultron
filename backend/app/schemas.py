@@ -47,6 +47,15 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class TemporaryPasswordOut(BaseModel):
     user_id: int
     email: str
@@ -147,12 +156,29 @@ class FindingReviewerOut(BaseModel):
         from_attributes = True
 
 
+class FindingAttachmentOut(BaseModel):
+    id: int
+    finding_id: int
+    filename: str
+    content_type: Optional[str] = None
+    size_bytes: int
+    uploaded_by_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class FindingOut(FindingBase):
     id: int
     scan_id: int
+    fingerprint: Optional[str] = None
+    occurrence_count: int = 1
+    first_seen_scan_id: Optional[int] = None
     reviewed_by_id: Optional[int] = None
     reviewed_by_user: Optional[FindingReviewerOut] = None
     reviewed_at: Optional[datetime] = None
+    attachments: List[FindingAttachmentOut] = []
     created_at: datetime
 
     class Config:

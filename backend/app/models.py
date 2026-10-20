@@ -80,7 +80,7 @@ class Scan(Base):
 
     client = relationship("Client", back_populates="scans")
     requested_by_user = relationship("User", back_populates="scans")
-    findings = relationship("Finding", back_populates="scan")
+    findings = relationship("Finding", back_populates="scan", foreign_keys="Finding.scan_id")
 
 
 class Finding(Base):
@@ -97,12 +97,16 @@ class Finding(Base):
     evidence = Column(Text)
     remediation = Column(Text)
     status = Column(String(50), default="open")
+    fingerprint = Column(String(64), index=True)
+    first_seen_scan_id = Column(Integer, ForeignKey("scans.id"), nullable=True)
+    occurrence_count = Column(Integer, default=1)
     reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    scan = relationship("Scan", back_populates="findings")
+    scan = relationship("Scan", back_populates="findings", foreign_keys=[scan_id])
     reviewed_by_user = relationship("User", back_populates="findings")
+    attachments = relationship("FindingAttachment", back_populates="finding", cascade="all, delete-orphan")
 
 
 class AuditLog(Base):
@@ -212,6 +216,35 @@ class CodeScan(Base):
     total_files = Column(Integer, default=0)
     issues_found = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+
+
+class FindingAttachment(Base):
+    __tablename__ = "finding_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    finding_id = Column(Integer, ForeignKey("findings.id"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(100))
+    size_bytes = Column(Integer, default=0)
+    storage_path = Column(String(500), nullable=False)
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    finding = relationship("Finding", back_populates="attachments")
+    uploaded_by = relationship("User")
 
 
 class CodeScanIssue(Base):
