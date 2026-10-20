@@ -81,8 +81,12 @@ as items are picked up or completed. It's the source of truth for "what's left."
 
 ### Product
 - [ ] Self-service client registration flow (today only `/auth/register` exists, no UI signup)
-- [ ] Email-based self-service forgot-password flow (requires SMTP/provider; admin-mediated
-      temporary-password reset and authenticated password change are implemented)
+- [x] Self-service forgot-password flow: `POST /auth/forgot-password` issues a single-use,
+      time-boxed token (`PasswordResetToken`, hashed at rest, previous tokens invalidated on
+      re-request); `POST /auth/reset-password` redeems it. No SMTP provider is wired up yet, so
+      the link is logged server-side (and echoed back as `dev_reset_token` only when
+      `DEBUG=true`) via `_deliver_reset_link` in `routers/auth.py` — swap that one function for
+      a real send once a provider is chosen, the token logic itself needs no changes.
 - [ ] Evidence file attachments on findings (screenshots, raw scanner output)
 - [x] Mobile pass on the console: off-canvas drawer, sticky top bar, collapsible sidebar,
       and horizontally scrollable tables in the newer sections

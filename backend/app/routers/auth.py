@@ -1,8 +1,12 @@
 """Authentication and registration."""
 
+import secrets
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app import models, schemas, auth, rate_limit, audit
 
@@ -67,3 +71,100 @@ def change_password(
         ip_address=rate_limit.client_ip(request),
     )
     return {"changed": True}
+
+
+# ============================================================
+# Self-service forgot-password (no SMTP provider wired up yet: the
+# reset link is logged server-side instead of emailed. Swap `_deliver_reset_link`
+# for a real mail send once a provider is configured, without touching the
+# token logic below).
+# ============================================================
+def _deliver_reset_link(user: models.User, raw_token: str) -> None:
+    print(f"[password-reset] token for {user.email}: {raw_token} "
+          f"(expires in {settings.password_reset_token_expire_minutes}m)")
+
+
+@router.post("/auth/forgot-password")
+def forgot_password(
+    payload: schemas.ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    rate_limit.check("forgot-password", rate_limit.client_ip(request), limit=5, window_seconds=300)
+
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
+    response: dict = {"detail": "If that account exists, a reset link has been sent."}
+
+    if user and user.is_active:
+        # Invalidate any outstanding tokens so only the newest link works.
+        db.query(models.PasswordResetToken).filter(
+            models.PasswordResetToken.user_id == user.id,
+            models.PasswordResetToken.used_at.is_(None),
+        ).update({"used_at": datetime.utcnow()})
+
+        raw_token = secrets.token_urlsafe(32)
+        reset_token = models.PasswordResetToken(
+            user_id=user.id,
+            token_hash=auth.hash_api_key(raw_token),
+            expires_at=datetime.utcnow()
+            + timedelta(minutes=settings.password_reset_token_expire_minutes),
+        )
+        db.add(reset_token)
+        audit.log_action(
+            db,
+            "forgot_password_requested",
+            user_id=user.id,
+            resource_type="user",
+            resource_id=str(user.id),
+            ip_address=rate_limit.client_ip(request),
+        )
+        db.commit()
+
+        _deliver_reset_link(user, raw_token)
+        if settings.debug:
+            # Dev convenience only: never expose this once a real mail
+            # provider replaces `_deliver_reset_link`.
+            response["dev_reset_token"] = raw_token
+
+    return response
+
+
+@router.post("/auth/reset-password")
+def reset_password(
+    payload: schemas.ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    rate_limit.check("reset-password", rate_limit.client_ip(request), limit=10, window_seconds=300)
+
+    token_hash = auth.hash_api_key(payload.token)
+    reset_token = (
+        db.query(models.PasswordResetToken)
+        .filter(models.PasswordResetToken.token_hash == token_hash)
+        .first()
+    )
+    now = datetime.utcnow()
+    if (
+        not reset_token
+        or reset_token.used_at is not None
+        or reset_token.expires_at < now
+    ):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user = db.query(models.User).filter(models.User.id == reset_token.user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user.hashed_password = auth.get_password_hash(payload.new_password)
+    reset_token.used_at = now
+    db.commit()
+
+    audit.log_action(
+        db,
+        "reset_password",
+        user_id=user.id,
+        resource_type="user",
+        resource_id=str(user.id),
+        ip_address=rate_limit.client_ip(request),
+    )
+    return {"reset": True}

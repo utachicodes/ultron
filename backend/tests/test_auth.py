@@ -247,3 +247,100 @@ def test_disabled_account_cannot_sign_in_or_reuse_its_token(client, anon):
         "/auth/token",
         json={"email": "disabled@user.sn", "password": "supersecret"},
     ).status_code == 200
+
+
+def test_forgot_password_issues_a_token_in_debug_mode(anon, db):
+    _register_and_login(anon, "forgetful@user.sn")
+
+    res = anon.post("/auth/forgot-password", json={"email": "forgetful@user.sn"})
+    assert res.status_code == 200
+    token = res.json()["dev_reset_token"]
+    assert token
+
+    from app import models
+    entry = db.query(models.AuditLog).filter(
+        models.AuditLog.action == "forgot_password_requested",
+    ).first()
+    assert entry is not None
+
+
+def test_forgot_password_does_not_leak_account_existence(anon):
+    exists = anon.post("/auth/forgot-password", json={"email": "forgetful@user.sn"})
+    missing = anon.post("/auth/forgot-password", json={"email": "nobody-here@user.sn"})
+    assert exists.status_code == missing.status_code == 200
+    assert exists.json()["detail"] == missing.json()["detail"]
+    assert "dev_reset_token" not in missing.json()
+
+
+def test_reset_password_with_valid_token(anon, db):
+    _register_and_login(anon, "reset-flow@user.sn")
+    token = anon.post(
+        "/auth/forgot-password", json={"email": "reset-flow@user.sn"}
+    ).json()["dev_reset_token"]
+
+    res = anon.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "brand-new-secret-9"},
+    )
+    assert res.status_code == 200, res.text
+
+    assert anon.post(
+        "/auth/token",
+        json={"email": "reset-flow@user.sn", "password": "supersecret"},
+    ).status_code == 400
+    assert anon.post(
+        "/auth/token",
+        json={"email": "reset-flow@user.sn", "password": "brand-new-secret-9"},
+    ).status_code == 200
+
+    from app import models
+    entry = db.query(models.AuditLog).filter(
+        models.AuditLog.action == "reset_password",
+    ).first()
+    assert entry is not None
+
+
+def test_reset_password_token_is_single_use(anon):
+    _register_and_login(anon, "one-shot@user.sn")
+    token = anon.post(
+        "/auth/forgot-password", json={"email": "one-shot@user.sn"}
+    ).json()["dev_reset_token"]
+
+    first = anon.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "brand-new-secret-9"},
+    )
+    assert first.status_code == 200
+
+    second = anon.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "another-secret-10"},
+    )
+    assert second.status_code == 400
+
+
+def test_reset_password_rejects_unknown_token(anon):
+    res = anon.post(
+        "/auth/reset-password",
+        json={"token": "not-a-real-token", "new_password": "brand-new-secret-9"},
+    )
+    assert res.status_code == 400
+
+
+def test_requesting_a_new_reset_token_invalidates_the_previous_one(anon):
+    _register_and_login(anon, "re-request@user.sn")
+    first_token = anon.post(
+        "/auth/forgot-password", json={"email": "re-request@user.sn"}
+    ).json()["dev_reset_token"]
+    second_token = anon.post(
+        "/auth/forgot-password", json={"email": "re-request@user.sn"}
+    ).json()["dev_reset_token"]
+
+    assert anon.post(
+        "/auth/reset-password",
+        json={"token": first_token, "new_password": "brand-new-secret-9"},
+    ).status_code == 400
+    assert anon.post(
+        "/auth/reset-password",
+        json={"token": second_token, "new_password": "brand-new-secret-9"},
+    ).status_code == 200
