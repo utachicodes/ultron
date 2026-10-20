@@ -62,6 +62,15 @@ as items are picked up or completed. It's the source of truth for "what's left."
 ## Backlog
 
 ### Correctness / hardening
+- [x] Console RBAC UI gating: the frontend used to show every create/update/delete control
+      (Add client, Start scan, Attest Review, Create Monitor, Run/Pause/Delete, Acknowledge/
+      Resolve, Scan Code, the Audit nav item) to every signed-in role, relying on the backend's
+      403 to stop a client-role user after the fact. Worse, the Dashboard bundled `/audit` (
+      admin/analyst only) into the same `Promise.all` as five calls a client role CAN make, so
+      that one 403 failed the *entire* dashboard for a client user. Added a `canManage` flag
+      (`admin`/`analyst`) threaded through `ctx`: those controls are now hidden for a client
+      role instead of rendered-then-rejected, `/audit` is skipped up front for a client role,
+      and the Audit nav item is hidden when the backend would 403 it anyway
 - [x] Rate limiting on auth endpoints (`/auth/token`, `/auth/register`) — in-process
       sliding window; swap for Redis when running multiple replicas
 - [x] Pagination for `/scans`, `/scans/{id}/findings`, `/audit`, `/alerts` (defaults + server caps)
@@ -92,8 +101,12 @@ as items are picked up or completed. It's the source of truth for "what's left."
 
 ### Product
 - [x] Self-service client registration flow: `/signup` page (register, then auto-login and
-      redirect to `/console`); the landing page's "Get Started" CTAs now point there instead
+      redirect to `/console`); the landing page's hero "Get Started" CTA points there instead
       of straight to the login screen
+- [x] One-click demo accounts: `seed_demo.py` seeds an Admin, an Analyst, and a Client persona
+      (the Client owns one of the two demo clients, so role-based scoping has something real to
+      demonstrate). The console login screen shows a "Try as ___" button per persona that signs
+      in immediately with sample clients/findings already loaded
 - [x] Self-service forgot-password flow: `POST /auth/forgot-password` issues a single-use,
       time-boxed token (`PasswordResetToken`, hashed at rest, previous tokens invalidated on
       re-request); `POST /auth/reset-password` redeems it. No SMTP provider is wired up yet, so
@@ -112,6 +125,10 @@ as items are picked up or completed. It's the source of truth for "what's left."
       Scan summaries count new-or-still-open issues, not just rows inserted by that run.
 
 ### Content
+- [x] Header nav decluttered: dropped "Contact" and "Get Started" from the primary nav
+      (`MarketingNav.tsx` and the landing page's own header) to cut it down to Platform/
+      Scanning/Sovereignty + Login. Contact is still reachable from the footer; "Get Started"
+      remains as the hero's own primary CTA on the landing page, just not duplicated in the header
 - [ ] Legal review of `/privacy-notice` and `/service-agreement`. Both are explicitly marked
       as drafts describing current code behavior, not lawyer-reviewed policy
 - [ ] Sharpen subpage copy further if `/platform`, `/scanning`, `/sovereignty` still read flat

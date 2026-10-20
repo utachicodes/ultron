@@ -27,6 +27,31 @@ const TEXT_DIM = 'rgba(244,244,246,0.64)'
 const TEXT_FAINT = 'rgba(244,244,246,0.42)'
 const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
+// One-click "try it" personas, seeded by `backend/seed_demo.py`. Only
+// present on a server an operator chose to seed with demo data -- if none
+// of these exist, the buttons below just surface the backend's normal
+// "Incorrect email or password" error, same as any other login attempt.
+const DEMO_ACCOUNTS = [
+  {
+    email: 'admin@ultorn.local',
+    password: 'admin123',
+    role: 'Admin',
+    blurb: 'Full platform access: every client, user management, API keys.',
+  },
+  {
+    email: 'analyst-demo@ultorn.local',
+    password: 'demo-analyst-123',
+    role: 'Analyst',
+    blurb: 'Runs scans, reviews findings, cannot manage users.',
+  },
+  {
+    email: 'client-demo@sahelbank.sn',
+    password: 'demo-client-123',
+    role: 'Client',
+    blurb: "Sees only Sahel Bank's own scans and findings.",
+  },
+]
+
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -115,18 +140,23 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [demoLoading, setDemoLoading] = useState<string | null>(null)
+
+  const authenticate = async (loginEmail: string, loginPassword: string) => {
+    const res = await fetch(`${API_URL}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+    })
+    return res.json()
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch(`${API_URL}/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
+      const data = await authenticate(email, password)
       if (data.access_token) {
         localStorage.setItem('token', data.access_token)
         onToken(data.access_token)
@@ -137,6 +167,27 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
       setError('Could not reach the network. Try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const loginAsDemo = async (account: (typeof DEMO_ACCOUNTS)[number]) => {
+    setError('')
+    setDemoLoading(account.email)
+    try {
+      const data = await authenticate(account.email, account.password)
+      if (data.access_token) {
+        localStorage.setItem('token', data.access_token)
+        onToken(data.access_token)
+      } else {
+        setError(
+          `Could not sign in as the demo ${account.role.toLowerCase()} account. ` +
+            `Has this server been seeded with demo data (python seed_demo.py)?`
+        )
+      }
+    } catch {
+      setError('Could not reach the network. Try again.')
+    } finally {
+      setDemoLoading(null)
     }
   }
 
@@ -191,6 +242,31 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
         </form>
 
         <p className="login-hint">Access is provisioned by your Ultorn administrator.</p>
+
+        <div className="demo-divider" role="separator">
+          <span>or explore first</span>
+        </div>
+        <div className="demo-accounts" role="group" aria-label="Try a demo account">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              className="demo-account-btn"
+              onClick={() => loginAsDemo(account)}
+              disabled={demoLoading !== null}
+              aria-busy={demoLoading === account.email}
+            >
+              <span className="demo-account-role">
+                {demoLoading === account.email ? 'Signing in…' : `Try as ${account.role}`}
+              </span>
+              <span className="demo-account-blurb">{account.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <p className="login-hint">
+          Demo accounts drop you straight into the console with sample clients and findings already loaded.
+        </p>
+
         <a href="/" className="login-back">← Back to home</a>
       </div>
     </div>
@@ -583,6 +659,12 @@ function Page() {
     )
   }
 
+  // Mirrors the backend's `require_role(admin, analyst)` gate used on every
+  // create/update/delete endpoint. A client-role user can read their own
+  // data everywhere but never mutate it -- the UI should never offer a
+  // control that the API will then reject.
+  const canManage = user?.role === 'admin' || user?.role === 'analyst'
+
   // Grouped so no menu exposes more than four choices at once (Hick's Law),
   // and ordered by the job an analyst is doing rather than by internal module.
   const NAV_GROUPS = [
@@ -615,19 +697,23 @@ function Page() {
         { key: 'ai', label: 'AI Guard', icon: 'ai' },
       ],
     },
+    // Audit (admin/analyst only on the backend) and Admin (admin only) are
+    // left out of this group entirely for roles that can't open them --
+    // a nav link to a page that only throws a 403 is a dead end, not a
+    // feature, and hiding it beats showing an error after the fact.
     {
       label: 'Governance',
       items: [
-        { key: 'audit', label: 'Audit', icon: 'audit' },
+        ...(canManage ? [{ key: 'audit', label: 'Audit', icon: 'audit' }] : []),
         ...(user?.role === 'admin' ? [{ key: 'admin', label: 'Admin', icon: 'admin' }] : []),
       ],
     },
-  ]
+  ].filter((group) => group.items.length > 0)
 
   const currentLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === view)?.label || 'Ultorn'
 
   const ctx = {
-    token, api, notify, user,
+    token, api, notify, user, canManage,
     clients, setClients,
     scans, setScans,
     findings, setFindings,
@@ -774,7 +860,7 @@ function severityTone(s: string) {
 }
 
 function Dashboard({ ctx }: { ctx: any }) {
-  const { api, token, clients, setClients, scans, setScans, audit, setAudit, setView } = ctx
+  const { api, token, clients, setClients, scans, setScans, audit, setAudit, setView, canManage } = ctx
     const [stats, setStats] = useState<any>({})
     const [alerts, setAlerts] = useState<any[]>([])
     const [monitors, setMonitors] = useState<any[]>([])
@@ -786,10 +872,15 @@ function Dashboard({ ctx }: { ctx: any }) {
       setLoading(true)
       setError('')
       try {
+        // /audit is admin/analyst only on the backend (403 for a client
+        // role). Bundling it into the same Promise.all as everything else
+        // used to fail the *entire* dashboard for a client user over one
+        // endpoint they were never going to be allowed to call -- skip it
+        // up front instead of asking and handling the rejection.
         const [scansData, clientsData, auditData, alertsData, monitorsData, codeData] = await Promise.all([
           api('/scans'),
           api('/clients'),
-          api('/audit?limit=8'),
+          canManage ? api('/audit?limit=8') : Promise.resolve([]),
           api('/alerts'),
           api('/monitors'),
           api('/code-scans'),
@@ -902,7 +993,9 @@ function Dashboard({ ctx }: { ctx: any }) {
           <div style={styles.panelDark}>
             <div style={styles.panelHeader}>
               <h3 style={styles.panelTitle}>Recent Scans</h3>
-              <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start a scan</button>
+              {canManage && (
+                <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start a scan</button>
+              )}
             </div>
             <div style={{ padding: '0 1.25rem 1.25rem' }}>
               {scans.slice(0, 6).map((s: any) => (
@@ -917,9 +1010,11 @@ function Dashboard({ ctx }: { ctx: any }) {
               {scans.length === 0 && (
                 <div style={styles.emptyState}>
                   No scans yet — a scan maps your attack surface and files findings for review.
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start the first scan</button>
-                  </div>
+                  {canManage && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <button type="button" onClick={() => setView('scans')} style={styles.darkActionBtn}>Start the first scan</button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -947,24 +1042,26 @@ function Dashboard({ ctx }: { ctx: any }) {
           </div>
         </div>
 
-        <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
-          <div style={styles.panelHeader}>
-            <h3 style={styles.panelTitle}>Recent Audit Activity</h3>
-            <button type="button" onClick={() => setView('audit')} style={styles.darkActionBtn}>View log</button>
-          </div>
-          <div style={{ padding: '0 1.25rem 1.25rem' }}>
-            {audit.map((a: any) => (
-              <div key={a.id} style={styles.auditRow}>
-                <div>
-                  <strong style={{ color: '#f5f5f7' }}>{a.action}</strong>
-                  <span style={styles.listRowSub}> · {a.resource_type} #{a.resource_id}</span>
+        {canManage && (
+          <div style={{ ...styles.panelDark, marginTop: '1rem' }}>
+            <div style={styles.panelHeader}>
+              <h3 style={styles.panelTitle}>Recent Audit Activity</h3>
+              <button type="button" onClick={() => setView('audit')} style={styles.darkActionBtn}>View log</button>
+            </div>
+            <div style={{ padding: '0 1.25rem 1.25rem' }}>
+              {audit.map((a: any) => (
+                <div key={a.id} style={styles.auditRow}>
+                  <div>
+                    <strong style={{ color: '#f5f5f7' }}>{a.action}</strong>
+                    <span style={styles.listRowSub}> · {a.resource_type} #{a.resource_id}</span>
+                  </div>
+                  <span style={styles.listRowSub}>{new Date(a.created_at).toLocaleString()}</span>
                 </div>
-                <span style={styles.listRowSub}>{new Date(a.created_at).toLocaleString()}</span>
-              </div>
-            ))}
-            {audit.length === 0 && <div style={styles.emptyState}>No activity recorded yet.</div>}
+              ))}
+              {audit.length === 0 && <div style={styles.emptyState}>No activity recorded yet.</div>}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     )
   }
@@ -973,7 +1070,7 @@ function Dashboard({ ctx }: { ctx: any }) {
 // CLIENTS
 // ============================================================
 function ClientsSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, clients, setClients } = ctx
+  const { api, token, notify, clients, setClients, canManage } = ctx
     const [newClient, setNewClient] = useState({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
     const [showAdd, setShowAdd] = useState(false)
     const [selectedId, setSelectedId] = useState<any>(null)
@@ -1074,7 +1171,9 @@ function ClientsSection({ ctx }: { ctx: any }) {
         <SplitPanel
           title="All Clients"
           loading={loading}
-          action={<button type="button" onClick={() => setShowAdd(true)} style={styles.darkActionBtn}>+ Add client</button>}
+          action={canManage ? (
+            <button type="button" onClick={() => setShowAdd(true)} style={styles.darkActionBtn}>+ Add client</button>
+          ) : undefined}
           items={clients}
           selectedId={selectedId}
           onSelect={(c) => setSelectedId(c.id)}
@@ -1106,25 +1205,27 @@ function ClientsSection({ ctx }: { ctx: any }) {
                     <Badge tone="neutral">{s.target_type}</Badge>
                   </div>
                 ))}
-                <form onSubmit={addScope} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                  <input
-                    aria-label="Scope target (domain, IP, or URL)"
-                    value={newScope.target}
-                    onChange={(e) => setNewScope({ ...newScope, target: e.target.value })}
-                    style={{ ...styles.input, flex: '1 1 200px', background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
-                  />
-                  <select
-                    aria-label="Scope type"
-                    value={newScope.target_type}
-                    onChange={(e) => setNewScope({ ...newScope, target_type: e.target.value })}
-                    style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
-                  >
-                    <option value="domain">Domain</option>
-                    <option value="ip">IP</option>
-                    <option value="url">URL</option>
-                  </select>
-                  <button type="submit" disabled={!newScope.target.trim()} style={{ ...styles.darkActionBtn, opacity: newScope.target.trim() ? 1 : 0.5 }}>Add</button>
-                </form>
+                {canManage && (
+                  <form onSubmit={addScope} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                    <input
+                      aria-label="Scope target (domain, IP, or URL)"
+                      value={newScope.target}
+                      onChange={(e) => setNewScope({ ...newScope, target: e.target.value })}
+                      style={{ ...styles.input, flex: '1 1 200px', background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
+                    />
+                    <select
+                      aria-label="Scope type"
+                      value={newScope.target_type}
+                      onChange={(e) => setNewScope({ ...newScope, target_type: e.target.value })}
+                      style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.07)', color: '#f5f5f7', border: '1px solid rgba(255,255,255,0.18)' }}
+                    >
+                      <option value="domain">Domain</option>
+                      <option value="ip">IP</option>
+                      <option value="url">URL</option>
+                    </select>
+                    <button type="submit" disabled={!newScope.target.trim()} style={{ ...styles.darkActionBtn, opacity: newScope.target.trim() ? 1 : 0.5 }}>Add</button>
+                  </form>
+                )}
               </div>
             </>
           )}
@@ -1137,7 +1238,7 @@ function ClientsSection({ ctx }: { ctx: any }) {
 // SCANS
 // ============================================================
 function ScansSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, clients, setClients, scans, setScans } = ctx
+  const { api, token, notify, clients, setClients, scans, setScans, canManage } = ctx
     const [newScan, setNewScan] = useState({ client_id: '', scan_type: 'vulnerability' })
     const [showStart, setShowStart] = useState(false)
     const [selectedId, setSelectedId] = useState<any>(null)
@@ -1213,7 +1314,9 @@ function ScansSection({ ctx }: { ctx: any }) {
         <SplitPanel
           title="Scans"
           loading={loading}
-          action={<button type="button" onClick={() => setShowStart(true)} style={styles.darkActionBtn}>+ Start scan</button>}
+          action={canManage ? (
+            <button type="button" onClick={() => setShowStart(true)} style={styles.darkActionBtn}>+ Start scan</button>
+          ) : undefined}
           items={scans}
           selectedId={selectedId}
           onSelect={(s) => setSelectedId(s.id)}
@@ -1237,7 +1340,7 @@ function ScansSection({ ctx }: { ctx: any }) {
                 <div style={styles.subCard}><div style={styles.subCardLabel}>Critical</div><div style={styles.subCardValue}>{s.summary?.critical || 0}</div></div>
                 <div style={styles.subCard}><div style={styles.subCardLabel}>High</div><div style={styles.subCardValue}>{s.summary?.high || 0}</div></div>
               </div>
-              {s.status !== 'running' && (
+              {canManage && s.status !== 'running' && (
                 <button type="button" onClick={() => runScan(s.id)} style={{ ...styles.darkActionBtn, marginTop: '1.25rem' }}>Run scan</button>
               )}
             </>
@@ -1251,7 +1354,7 @@ function ScansSection({ ctx }: { ctx: any }) {
 // FINDINGS
 // ============================================================
 function FindingsSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, findings, setFindings } = ctx
+  const { api, token, notify, findings, setFindings, canManage } = ctx
     const [selectedId, setSelectedId] = useState<any>(null)
     const [reviewStatus, setReviewStatus] = useState('fixed')
 
@@ -1313,7 +1416,7 @@ function FindingsSection({ ctx }: { ctx: any }) {
                 <div style={styles.detailLabel}>Reviewed by</div>
                 <div style={styles.listRowSub}>{f.reviewed_by_user?.email || 'Not yet reviewed'}</div>
 
-                {needsReview && (
+                {needsReview && canManage && (
                   <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
                     <select
                       aria-label="New status for this finding"
@@ -1782,7 +1885,7 @@ function AdminSection({ ctx }: { ctx: any }) {
 // MONITORS (Continuous Monitoring)
 // ============================================================
 function MonitorsSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, monitors, setMonitors } = ctx
+  const { api, token, notify, monitors, setMonitors, canManage } = ctx
     const [newMonitor, setNewMonitor] = useState({ target: '', monitor_type: 'access_anomaly', client_id: '' })
     const [clientsForMonitor, setClientsForMonitor] = useState<any[]>([])
     const [selectedId, setSelectedId] = useState<any>(null)
@@ -1878,6 +1981,7 @@ function MonitorsSection({ ctx }: { ctx: any }) {
           and policy violations before they go live.
         </p>
 
+        {canManage && (
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Create Monitor</h3>
           <form onSubmit={createMonitor}>
@@ -1910,6 +2014,7 @@ function MonitorsSection({ ctx }: { ctx: any }) {
             <Button type="submit" loading={submitting} disabled={!canSubmit}>Create monitor</Button>
           </form>
         </div>
+        )}
 
         <SplitPanel
           title="Monitors"
@@ -1941,13 +2046,15 @@ function MonitorsSection({ ctx }: { ctx: any }) {
             <>
               <div style={styles.detailHeading}>{m.target}</div>
               <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
-              <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run check now</button>
-                <button type="button" onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
-                  {m.is_active ? 'Pause' : 'Resume'}
-                </button>
-                <button type="button" onClick={() => setPendingDelete(m)} style={styles.darkActionBtn}>Delete</button>
-              </div>
+              {canManage && (
+                <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run check now</button>
+                  <button type="button" onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
+                    {m.is_active ? 'Pause' : 'Resume'}
+                  </button>
+                  <button type="button" onClick={() => setPendingDelete(m)} style={styles.darkActionBtn}>Delete</button>
+                </div>
+              )}
               {monitorAlerts.length > 0 && (
                 <>
                   <div style={styles.detailLabel}>Alerts</div>
@@ -1983,7 +2090,7 @@ function MonitorsSection({ ctx }: { ctx: any }) {
 // ALERTS
 // ============================================================
 function AlertsSection({ ctx }: { ctx: any }) {
-  const { api, token, notify } = ctx
+  const { api, token, notify, canManage } = ctx
     const [alerts, setAlerts] = useState<any[]>([])
     const [statusFilter, setStatusFilter] = useState('')
     const [severityFilter, setSeverityFilter] = useState('')
@@ -2096,7 +2203,7 @@ function AlertsSection({ ctx }: { ctx: any }) {
                   <td style={styles.td}>{a.status.replace('_', ' ')}</td>
                   <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>{new Date(a.created_at).toLocaleString()}</td>
                   <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {a.status === 'open' && (
+                    {canManage && a.status === 'open' && (
                       <button
                         type="button"
                         onClick={() => setStatus(a, 'acknowledged')}
@@ -2106,7 +2213,7 @@ function AlertsSection({ ctx }: { ctx: any }) {
                         Acknowledge
                       </button>
                     )}
-                    {a.status !== 'resolved' && (
+                    {canManage && a.status !== 'resolved' && (
                       <button
                         type="button"
                         onClick={() => setStatus(a, 'resolved')}
@@ -2131,7 +2238,7 @@ function AlertsSection({ ctx }: { ctx: any }) {
 // SCAN SCHEDULES
 // ============================================================
 function SchedulesSection({ ctx }: { ctx: any }) {
-  const { api, token, notify } = ctx
+  const { api, token, notify, canManage } = ctx
     const [schedules, setSchedules] = useState<any[]>([])
     const [clientsForSchedule, setClientsForSchedule] = useState<any[]>([])
     const [newSchedule, setNewSchedule] = useState({ client_id: '', scan_type: 'vulnerability', interval_minutes: '1440' })
@@ -2229,6 +2336,7 @@ function SchedulesSection({ ctx }: { ctx: any }) {
           current non-excluded scopes and files findings for human review.
         </p>
 
+        {canManage && (
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Create Schedule</h3>
           <form onSubmit={createSchedule}>
@@ -2266,6 +2374,7 @@ function SchedulesSection({ ctx }: { ctx: any }) {
             <Button type="submit" loading={submitting} disabled={!newSchedule.client_id}>Create schedule</Button>
           </form>
         </div>
+        )}
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Schedules</h3>
@@ -2298,9 +2407,13 @@ function SchedulesSection({ ctx }: { ctx: any }) {
                   </td>
                   <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <Badge tone={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Paused'}</Badge>
-                    <button type="button" onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
-                    <button type="button" onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
-                    <button type="button" onClick={() => setPendingDelete(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
+                    {canManage && (
+                      <>
+                        <button type="button" onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
+                        <button type="button" onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
+                        <button type="button" onClick={() => setPendingDelete(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -2329,7 +2442,7 @@ function SchedulesSection({ ctx }: { ctx: any }) {
 // CODE SCANS
 // ============================================================
 function CodeScansSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, codeScans, setCodeScans } = ctx
+  const { api, token, notify, codeScans, setCodeScans, canManage } = ctx
     const [newCodeScan, setNewCodeScan] = useState({ client_id: '', repository_url: '', branch: 'main' })
     const [clientsForCode, setClientsForCode] = useState<any[]>([])
     const [selectedId, setSelectedId] = useState<any>(null)
@@ -2394,6 +2507,7 @@ function CodeScansSection({ ctx }: { ctx: any }) {
           and logic flaws in AI-generated code before it ships.
         </p>
 
+        {canManage && (
         <div style={styles.lightCard}>
           <h3 style={styles.h3}>Scan Code</h3>
           <form onSubmit={createCodeScan}>
@@ -2421,6 +2535,7 @@ function CodeScansSection({ ctx }: { ctx: any }) {
             <Button type="submit" loading={submitting} disabled={!canSubmit}>Scan code</Button>
           </form>
         </div>
+        )}
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Code Scans</h3>
