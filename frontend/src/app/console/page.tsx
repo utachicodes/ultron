@@ -27,6 +27,31 @@ const TEXT_DIM = 'rgba(244,244,246,0.64)'
 const TEXT_FAINT = 'rgba(244,244,246,0.42)'
 const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
+// One-click "try it" personas, seeded by `backend/seed_demo.py`. Only
+// present on a server an operator chose to seed with demo data -- if none
+// of these exist, the buttons below just surface the backend's normal
+// "Incorrect email or password" error, same as any other login attempt.
+const DEMO_ACCOUNTS = [
+  {
+    email: 'admin@ultorn.local',
+    password: 'admin123',
+    role: 'Admin',
+    blurb: 'Full platform access: every client, user management, API keys.',
+  },
+  {
+    email: 'analyst-demo@ultorn.local',
+    password: 'demo-analyst-123',
+    role: 'Analyst',
+    blurb: 'Runs scans, reviews findings, cannot manage users.',
+  },
+  {
+    email: 'client-demo@sahelbank.sn',
+    password: 'demo-client-123',
+    role: 'Client',
+    blurb: "Sees only Sahel Bank's own scans and findings.",
+  },
+]
+
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -110,23 +135,34 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 }
 
-function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; notice?: string }) {
+function LoginScreen({
+  onToken,
+  notice,
+}: {
+  onToken: (token: string, startTour?: boolean) => void
+  notice?: string
+}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [demoLoading, setDemoLoading] = useState<string | null>(null)
+
+  const authenticate = async (loginEmail: string, loginPassword: string) => {
+    const res = await fetch(`${API_URL}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+    })
+    return res.json()
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch(`${API_URL}/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
+      const data = await authenticate(email, password)
       if (data.access_token) {
         localStorage.setItem('token', data.access_token)
         onToken(data.access_token)
@@ -137,6 +173,27 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
       setError('Could not reach the network. Try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const loginAsDemo = async (account: (typeof DEMO_ACCOUNTS)[number]) => {
+    setError('')
+    setDemoLoading(account.email)
+    try {
+      const data = await authenticate(account.email, account.password)
+      if (data.access_token) {
+        localStorage.setItem('token', data.access_token)
+        onToken(data.access_token, true)
+      } else {
+        setError(
+          `Could not sign in as the demo ${account.role.toLowerCase()} account. ` +
+            `Has this server been seeded with demo data (python seed_demo.py)?`
+        )
+      }
+    } catch {
+      setError('Could not reach the network. Try again.')
+    } finally {
+      setDemoLoading(null)
     }
   }
 
@@ -191,6 +248,31 @@ function LoginScreen({ onToken, notice }: { onToken: (token: string) => void; no
         </form>
 
         <p className="login-hint">Access is provisioned by your Ultorn administrator.</p>
+
+        <div className="demo-divider" role="separator">
+          <span>or explore first</span>
+        </div>
+        <div className="demo-accounts" role="group" aria-label="Try a demo account">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              className="demo-account-btn"
+              onClick={() => loginAsDemo(account)}
+              disabled={demoLoading !== null}
+              aria-busy={demoLoading === account.email}
+            >
+              <span className="demo-account-role">
+                {demoLoading === account.email ? 'Signing in…' : `Try as ${account.role}`}
+              </span>
+              <span className="demo-account-blurb">{account.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <p className="login-hint">
+          Demo accounts drop you into a guided tour with sample clients and findings already loaded.
+        </p>
+
         <a href="/" className="login-back">← Back to home</a>
       </div>
     </div>
@@ -334,6 +416,139 @@ function ChangePasswordButton({
         </Modal>
       )}
     </>
+  )
+}
+
+// ============================================================
+// Guided tour: walks a beginner through the console view by view,
+// actually switching views as it goes rather than just narrating them.
+// ============================================================
+const TOUR_STEPS = [
+  {
+    view: 'dashboard',
+    title: 'Your dashboard',
+    body: 'A live snapshot across every client: open scans, findings that need review, and recent audit activity.',
+  },
+  {
+    view: 'clients',
+    title: 'Clients',
+    body: "Who you work for. Each client has a scope -- the domains, IPs, and URLs you're authorized to test. Nothing outside that scope is ever touched.",
+  },
+  {
+    view: 'scans',
+    title: 'Scans',
+    body: 'Every assessment that has run or is running, with its findings attached. Recurring scans show up here too.',
+  },
+  {
+    view: 'findings',
+    title: 'Findings',
+    body: 'Each finding carries severity, evidence, and a remediation note. Critical and high findings wait for a named analyst to review them before they can close.',
+  },
+  {
+    view: 'monitors',
+    title: 'Continuous monitoring',
+    body: 'Monitors run quietly between scans, watching for config drift, leaked credentials, and access anomalies.',
+  },
+  {
+    view: 'ai',
+    title: 'AI Guard',
+    body: 'Every AI-assisted query is sanitized before it leaves your infrastructure, and logged -- never the raw prompt, just that it happened.',
+  },
+  {
+    view: 'audit',
+    title: 'Audit log',
+    body: 'Every action taken in Ultorn, written once and never edited. This is the record that survives a dispute.',
+  },
+] as const
+
+function GuidedTour({
+  view,
+  setView,
+  isAdmin,
+  onDone,
+}: {
+  view: string
+  setView: (v: string) => void
+  isAdmin: boolean
+  onDone: () => void
+}) {
+  const steps = isAdmin
+    ? [...TOUR_STEPS, { view: 'admin', title: 'Admin', body: 'Manage user roles and mint or revoke API keys. Only visible to admins.' }]
+    : TOUR_STEPS
+  const [index, setIndex] = useState(0)
+  const step = steps[index]
+
+  // Keep the console actually showing the view each step talks about.
+  useEffect(() => {
+    setView(step.view)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index])
+
+  const isLast = index === steps.length - 1
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Guided tour"
+      aria-describedby="tour-step-body"
+      style={{
+        position: 'fixed',
+        right: '1.5rem',
+        bottom: '1.5rem',
+        zIndex: 400,
+        width: 'min(340px, calc(100vw - 2rem))',
+        background: SURFACE_RAISED,
+        border: `1px solid ${ACCENT_BORDER}`,
+        borderRadius: '16px',
+        boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        padding: '1.1rem 1.25rem',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: ACCENT_BRIGHT }}>
+          Guided tour · {index + 1}/{steps.length}
+        </span>
+        <button
+          type="button"
+          onClick={onDone}
+          aria-label="End guided tour"
+          style={{ background: 'transparent', border: 'none', color: TEXT_FAINT, cursor: 'pointer', fontSize: '1rem', lineHeight: 1, minHeight: 'auto' }}
+        >
+          ✕
+        </button>
+      </div>
+      <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem', fontWeight: 700, color: TEXT }}>{step.title}</h3>
+      <p id="tour-step-body" style={{ margin: '0 0 1rem', fontSize: '0.86rem', color: TEXT_DIM, lineHeight: 1.5 }}>
+        {step.body}
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
+        <button
+          type="button"
+          onClick={onDone}
+          style={{ ...styles.buttonGhostLight, padding: '0.45rem 0.9rem', fontSize: '0.8rem' }}
+        >
+          Skip tour
+        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {index > 0 && (
+            <button
+              type="button"
+              onClick={() => setIndex((i) => i - 1)}
+              style={{ ...styles.buttonGhostLight, padding: '0.45rem 0.9rem', fontSize: '0.8rem' }}
+            >
+              Back
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => (isLast ? onDone() : setIndex((i) => i + 1))}
+            style={{ ...styles.button, padding: '0.45rem 1rem', fontSize: '0.8rem' }}
+          >
+            {isLast ? 'Finish' : 'Next'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -487,10 +702,14 @@ function Page() {
   const [message, setMessage] = useState<{ text: string; type: ToastTone } | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [tourActive, setTourActive] = useState(false)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('ultorn_sidebar_collapsed') === 'true')
+    // A tour in progress survives a page refresh (e.g. the user reloads
+    // mid-tour); it does not survive a fresh, non-demo sign-in.
+    setTourActive(localStorage.getItem('ultorn_tour_active') === 'true')
   }, [])
 
   useEffect(() => {
@@ -574,13 +793,22 @@ function Page() {
     return (
       <LoginScreen
         notice={authNotice}
-        onToken={(t: string) => {
+        onToken={(t: string, startTour?: boolean) => {
           setAuthNotice('')
           setToken(t)
           setView('dashboard')
+          if (startTour) {
+            localStorage.setItem('ultorn_tour_active', 'true')
+            setTourActive(true)
+          }
         }}
       />
     )
+  }
+
+  const endTour = () => {
+    localStorage.removeItem('ultorn_tour_active')
+    setTourActive(false)
   }
 
   // Grouped so no menu exposes more than four choices at once (Hick's Law),
@@ -641,6 +869,9 @@ function Page() {
   // ---------- MAIN LAYOUT ----------
   return (
     <div className="console-shell" style={styles.shell}>
+      {tourActive && (
+        <GuidedTour view={view} setView={setView} isAdmin={user?.role === 'admin'} onDone={endTour} />
+      )}
       <div
         className={`console-backdrop${mobileOpen ? ' open' : ''}`}
         onClick={() => setMobileOpen(false)}

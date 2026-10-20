@@ -91,6 +91,11 @@ as items are picked up or completed. It's the source of truth for "what's left."
       CI currently only checks that each side imports/builds, not behavior
 
 ### Product
+- [x] One-click demo accounts + guided tour: `seed_demo.py` now also seeds an Admin, an
+      Analyst, and a Client persona (the Client owns one of the two demo clients); the login
+      screen shows a "Try as ___" button per persona that signs in and launches an in-console
+      tour (`GuidedTour` in `console/page.tsx`) walking through Dashboard, Clients, Scans,
+      Findings, Monitors, AI Guard, and Audit, switching the real view as it goes
 - [x] Self-service client registration flow: `/signup` page (register, then auto-login and
       redirect to `/console`); the landing page's "Get Started" CTAs now point there instead
       of straight to the login screen
