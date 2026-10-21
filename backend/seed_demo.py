@@ -177,6 +177,7 @@ def seed(reset: bool = False) -> None:
                 legal_name="Sahel Bank SA",
                 contact_email="security@sahelbank.sn",
                 contact_phone="+221 33 000 0000",
+                sector="banking",
                 owner_id=client_demo_user.id,
             )
             db.add(bank)
@@ -284,6 +285,7 @@ def seed(reset: bool = False) -> None:
                 legal_name="Sonatel SA",
                 contact_email="soc@sonatel.sn",
                 contact_phone="+221 33 111 1111",
+                sector="telecom",
                 owner_id=admin.id,
             )
             db.add(telco)

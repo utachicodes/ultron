@@ -76,11 +76,21 @@ class ClientBase(BaseModel):
     legal_name: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
+    sector: Optional[str] = None
     is_active: bool = True
 
 
 class ClientCreate(ClientBase):
     pass
+
+
+class ClientUpdate(BaseModel):
+    name: Optional[str] = None
+    legal_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    sector: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class ClientOut(ClientBase):
@@ -101,6 +111,13 @@ class ScanScopeBase(BaseModel):
 
 class ScanScopeCreate(ScanScopeBase):
     pass
+
+
+class ScanScopeUpdate(BaseModel):
+    target: Optional[str] = None
+    target_type: Optional[str] = None
+    is_excluded: Optional[bool] = None
+    verification_method: Optional[str] = None
 
 
 class ScanScopeOut(ScanScopeBase):

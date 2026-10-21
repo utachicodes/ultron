@@ -214,6 +214,44 @@ def test_admin_can_reset_a_password(client, anon, db):
     assert temp not in (entry.details or "")
 
 
+def test_admin_can_create_a_user_with_any_role(client, anon, db):
+    res = client.post(
+        "/admin/users",
+        json={"email": "new-analyst@ultorn.local", "password": "analyst-pass-1", "role": "analyst"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["role"] == "analyst"
+    assert body["is_active"] is True
+
+    login = anon.post(
+        "/auth/token",
+        json={"email": "new-analyst@ultorn.local", "password": "analyst-pass-1"},
+    )
+    assert login.status_code == 200
+
+    from app import models
+    entry = db.query(models.AuditLog).filter(models.AuditLog.action == "admin_create_user").first()
+    assert entry is not None
+    assert "analyst-pass-1" not in (entry.details or "")
+
+
+def test_admin_create_user_rejects_duplicate_email(client):
+    client.post("/admin/users", json={"email": "dup@ultorn.local", "password": "password1"})
+    res = client.post("/admin/users", json={"email": "dup@ultorn.local", "password": "password2"})
+    assert res.status_code == 400
+
+
+def test_non_admin_cannot_create_a_user(anon):
+    _, token = _register_and_login(anon, "not-admin-2@user.sn")
+    res = anon.post(
+        "/admin/users",
+        json={"email": "sneaky@user.sn", "password": "password1", "role": "admin"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 403
+
+
 def test_non_admin_cannot_reset_a_password(anon):
     user, token = _register_and_login(anon, "not-admin@user.sn")
     victim, _ = _register_and_login(anon, "victim@user.sn")

@@ -664,6 +664,7 @@ function Page() {
   // data everywhere but never mutate it -- the UI should never offer a
   // control that the API will then reject.
   const canManage = user?.role === 'admin' || user?.role === 'analyst'
+  const isAdmin = user?.role === 'admin'
 
   // Grouped so no menu exposes more than four choices at once (Hick's Law),
   // and ordered by the job an analyst is doing rather than by internal module.
@@ -713,7 +714,7 @@ function Page() {
   const currentLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === view)?.label || 'Ultorn'
 
   const ctx = {
-    token, api, notify, user, canManage,
+    token, api, notify, user, canManage, isAdmin,
     clients, setClients,
     scans, setScans,
     findings, setFindings,
@@ -857,6 +858,16 @@ function severityTone(s: string) {
     case 'medium': return 'accent'
     default: return 'neutral'
   }
+}
+
+const SECTOR_LABELS: Record<string, string> = {
+  banking: 'Banking / Mobile Money',
+  telecom: 'Telecom',
+  government: 'Government',
+  other: 'Other',
+}
+function sectorLabel(sector: string) {
+  return SECTOR_LABELS[sector] || sector
 }
 
 function Dashboard({ ctx }: { ctx: any }) {
@@ -1070,28 +1081,45 @@ function Dashboard({ ctx }: { ctx: any }) {
 // CLIENTS
 // ============================================================
 function ClientsSection({ ctx }: { ctx: any }) {
-  const { api, token, notify, clients, setClients, canManage } = ctx
-    const [newClient, setNewClient] = useState({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
+  const { api, token, notify, clients, setClients, canManage, isAdmin } = ctx
+    const emptyClientForm = { name: '', legal_name: '', contact_email: '', contact_phone: '', sector: '' }
+    const [newClient, setNewClient] = useState(emptyClientForm)
     const [showAdd, setShowAdd] = useState(false)
+    const [editClient, setEditClient] = useState<any>(null)
+    const [editForm, setEditForm] = useState(emptyClientForm)
+    const [pendingDeleteClient, setPendingDeleteClient] = useState<any>(null)
     const [selectedId, setSelectedId] = useState<any>(null)
     const [scopes, setScopes] = useState<any[]>([])
     const [newScope, setNewScope] = useState({ target: '', target_type: 'domain' })
+    const [pendingDeleteScope, setPendingDeleteScope] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
+    const [savingEdit, setSavingEdit] = useState(false)
+
+    const loadClients = async () => {
+      try {
+        const data = await api('/clients')
+        setClients(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load clients', 'error')
+      }
+    }
 
     useEffect(() => {
-      api('/clients')
-        .then((data: any) => setClients(Array.isArray(data) ? data : []))
-        .catch((e: any) => notify(e.message || 'Could not load clients', 'error'))
-        .finally(() => setLoading(false))
+      loadClients().finally(() => setLoading(false))
     }, [token])
 
-    useEffect(() => {
-      if (selectedId) {
-        api(`/clients/${selectedId}/scopes`)
-          .then((data: any) => setScopes(Array.isArray(data) ? data : []))
-          .catch((e: any) => notify(e.message || 'Could not load scopes', 'error'))
+    const loadScopes = async (clientId: any) => {
+      try {
+        const data = await api(`/clients/${clientId}/scopes`)
+        setScopes(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        notify(e.message || 'Could not load scopes', 'error')
       }
+    }
+
+    useEffect(() => {
+      if (selectedId) loadScopes(selectedId)
     }, [selectedId])
 
     const createClient = async (e: any) => {
@@ -1099,10 +1127,9 @@ function ClientsSection({ ctx }: { ctx: any }) {
       setSubmitting(true)
       try {
         await api('/clients', { method: 'POST', body: JSON.stringify(newClient) })
-        setNewClient({ name: '', legal_name: '', contact_email: '', contact_phone: '' })
+        setNewClient(emptyClientForm)
         setShowAdd(false)
-        const data = await api('/clients')
-        setClients(Array.isArray(data) ? data : [])
+        await loadClients()
         notify('Client created', 'success')
       } catch (e: any) {
         notify(e.message || 'Could not create the client', 'error')
@@ -1111,16 +1138,92 @@ function ClientsSection({ ctx }: { ctx: any }) {
       }
     }
 
+    const openEdit = (c: any) => {
+      setEditForm({
+        name: c.name || '',
+        legal_name: c.legal_name || '',
+        contact_email: c.contact_email || '',
+        contact_phone: c.contact_phone || '',
+        sector: c.sector || '',
+      })
+      setEditClient(c)
+    }
+
+    const saveEdit = async (e: any) => {
+      e.preventDefault()
+      if (!editClient) return
+      setSavingEdit(true)
+      try {
+        await api(`/clients/${editClient.id}`, { method: 'PATCH', body: JSON.stringify(editForm) })
+        setEditClient(null)
+        await loadClients()
+        notify('Client updated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the client', 'error')
+      } finally {
+        setSavingEdit(false)
+      }
+    }
+
+    const toggleClientActive = async (c: any) => {
+      try {
+        await api(`/clients/${c.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !c.is_active }) })
+        await loadClients()
+        notify(c.is_active ? 'Client deactivated' : 'Client reactivated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the client', 'error')
+      }
+    }
+
+    const confirmDeleteClient = async () => {
+      const c = pendingDeleteClient
+      setPendingDeleteClient(null)
+      if (!c) return
+      try {
+        await api(`/clients/${c.id}`, { method: 'DELETE' })
+        if (selectedId === c.id) setSelectedId(null)
+        await loadClients()
+        notify('Client and all of its scans, findings, and monitors were deleted', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not delete the client', 'error')
+      }
+    }
+
     const addScope = async (e: any) => {
       e.preventDefault()
       try {
         await api(`/clients/${selectedId}/scopes`, { method: 'POST', body: JSON.stringify(newScope) })
         setNewScope({ target: '', target_type: 'domain' })
-        const data = await api(`/clients/${selectedId}/scopes`)
-        setScopes(Array.isArray(data) ? data : [])
+        await loadScopes(selectedId)
         notify('Scope added', 'success')
       } catch (e: any) {
         notify(e.message || 'Could not add the scope', 'error')
+      }
+    }
+
+    const toggleScopeExcluded = async (s: any) => {
+      try {
+        await api(`/clients/${selectedId}/scopes/${s.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_excluded: !s.is_excluded }),
+        })
+        await loadScopes(selectedId)
+        notify(s.is_excluded ? 'Scope included in future scans' : 'Scope excluded from future scans', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the scope', 'error')
+      }
+    }
+
+    const confirmDeleteScope = async () => {
+      const s = pendingDeleteScope
+      setPendingDeleteScope(null)
+      if (!s) return
+      try {
+        await api(`/clients/${selectedId}/scopes/${s.id}`, { method: 'DELETE' })
+        await loadScopes(selectedId)
+        notify('Scope removed', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not remove the scope', 'error')
       }
     }
 
@@ -1161,9 +1264,66 @@ function ClientsSection({ ctx }: { ctx: any }) {
                   onChange={(e) => setNewClient({ ...newClient, contact_phone: e.target.value })}
                 />
               </Field>
+              <Field label="Sector" htmlFor="client-sector" tone="dark" hint="Drives which compliance obligations apply to this client">
+                <Select value={newClient.sector} onChange={(e) => setNewClient({ ...newClient, sector: e.target.value })} tone="dark">
+                  <option value="">Unspecified</option>
+                  <option value="banking">Banking / Mobile Money</option>
+                  <option value="telecom">Telecom</option>
+                  <option value="government">Government</option>
+                  <option value="other">Other</option>
+                </Select>
+              </Field>
               <Button type="submit" loading={submitting} disabled={!newClient.name.trim()}>
                 Add client
               </Button>
+            </form>
+          </Modal>
+        )}
+
+        {editClient && (
+          <Modal title={`Edit ${editClient.name}`} onClose={() => setEditClient(null)}>
+            <form onSubmit={saveEdit}>
+              <Field label="Client name" htmlFor="edit-client-name" tone="dark" required>
+                <TextInput
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  autoFocus
+                  required
+                />
+              </Field>
+              <Field label="Legal name" htmlFor="edit-client-legal-name" tone="dark">
+                <TextInput
+                  value={editForm.legal_name}
+                  onChange={(e) => setEditForm({ ...editForm, legal_name: e.target.value })}
+                />
+              </Field>
+              <Field label="Contact email" htmlFor="edit-client-email" tone="dark">
+                <TextInput
+                  type="email"
+                  value={editForm.contact_email}
+                  onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })}
+                />
+              </Field>
+              <Field label="Contact phone" htmlFor="edit-client-phone" tone="dark">
+                <TextInput
+                  type="tel"
+                  value={editForm.contact_phone}
+                  onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })}
+                />
+              </Field>
+              <Field label="Sector" htmlFor="edit-client-sector" tone="dark" hint="Drives which compliance obligations apply to this client">
+                <Select value={editForm.sector} onChange={(e) => setEditForm({ ...editForm, sector: e.target.value })} tone="dark">
+                  <option value="">Unspecified</option>
+                  <option value="banking">Banking / Mobile Money</option>
+                  <option value="telecom">Telecom</option>
+                  <option value="government">Government</option>
+                  <option value="other">Other</option>
+                </Select>
+              </Field>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Button type="submit" loading={savingEdit} disabled={!editForm.name.trim()}>Save changes</Button>
+                <Button type="button" variant="secondaryDark" onClick={() => setEditClient(null)} disabled={savingEdit}>Cancel</Button>
+              </div>
             </form>
           </Modal>
         )}
@@ -1190,19 +1350,57 @@ function ClientsSection({ ctx }: { ctx: any }) {
           )}
           renderDetail={(c) => (
             <>
-              <div style={styles.detailHeading}>{c.name}</div>
-              {c.legal_name && <div style={styles.listRowSub}>{c.legal_name}</div>}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <div>
+                  <div style={styles.detailHeading}>{c.name}</div>
+                  {c.legal_name && <div style={styles.listRowSub}>{c.legal_name}</div>}
+                </div>
+                <Badge tone={c.is_active ? 'success' : 'neutral'}>{c.is_active ? 'Active' : 'Inactive'}</Badge>
+              </div>
               <div style={styles.detailSub}>
                 {c.contact_email || 'No contact email'} · {c.contact_phone || 'No contact phone'}
+                {c.sector && <Badge tone="accent">{sectorLabel(c.sector)}</Badge>}
               </div>
+
+              {canManage && (
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => openEdit(c)} style={styles.darkActionBtn}>Edit</button>
+                  <button type="button" onClick={() => toggleClientActive(c)} style={styles.darkActionBtn}>
+                    {c.is_active ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                  {isAdmin && (
+                    <button type="button" onClick={() => setPendingDeleteClient(c)} style={{ ...styles.darkActionBtn, background: 'rgba(248,113,113,0.16)', color: '#fca5a5' }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div style={{ marginTop: '1.25rem' }}>
                 <div style={styles.detailLabel}>Scan scopes</div>
                 {scopes.length === 0 && <div style={styles.listRowSub}>No scopes added.</div>}
                 {scopes.map((s: any) => (
-                  <div key={s.id} style={styles.scopeRow}>
-                    <span>{s.target}</span>
-                    <Badge tone="neutral">{s.target_type}</Badge>
+                  <div key={s.id} style={{ ...styles.scopeRow, alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {s.target}
+                      <Badge tone="neutral">{s.target_type}</Badge>
+                      {s.is_excluded && <Badge tone="warning">Excluded</Badge>}
+                      <Badge tone={s.verified ? 'success' : 'neutral'}>{s.verified ? 'Verified' : 'Unverified'}</Badge>
+                    </span>
+                    {canManage && (
+                      <span style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                        <button type="button" onClick={() => toggleScopeExcluded(s)} style={styles.buttonSmall}>
+                          {s.is_excluded ? 'Include' : 'Exclude'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteScope(s)}
+                          style={{ ...styles.buttonSmall, background: 'rgba(248,113,113,0.14)', color: '#fca5a5', borderColor: 'rgba(248,113,113,0.3)' }}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    )}
                   </div>
                 ))}
                 {canManage && (
@@ -1229,6 +1427,32 @@ function ClientsSection({ ctx }: { ctx: any }) {
               </div>
             </>
           )}
+        />
+
+        <ConfirmDialog
+          open={Boolean(pendingDeleteClient)}
+          title="Delete this client?"
+          description={
+            pendingDeleteClient
+              ? `${pendingDeleteClient.name} and every scan, finding, monitor, alert, schedule, and code scan tied to it will be permanently deleted. This cannot be undone.`
+              : ''
+          }
+          confirmLabel="Delete client"
+          onConfirm={confirmDeleteClient}
+          onCancel={() => setPendingDeleteClient(null)}
+        />
+
+        <ConfirmDialog
+          open={Boolean(pendingDeleteScope)}
+          title="Remove this scope?"
+          description={
+            pendingDeleteScope
+              ? `${pendingDeleteScope.target} will no longer be in scope for future scans. Past findings against it are kept.`
+              : ''
+          }
+          confirmLabel="Remove scope"
+          onConfirm={confirmDeleteScope}
+          onCancel={() => setPendingDeleteScope(null)}
         />
       </div>
     )
@@ -1618,6 +1842,10 @@ function AdminSection({ ctx }: { ctx: any }) {
     const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
     const [resettingPassword, setResettingPassword] = useState(false)
     const [resetError, setResetError] = useState('')
+    const [showCreateUser, setShowCreateUser] = useState(false)
+    const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'analyst' })
+    const [creatingUser, setCreatingUser] = useState(false)
+    const [createUserError, setCreateUserError] = useState('')
 
     const loadUsers = async () => {
       const data = await api('/admin/users')
@@ -1651,6 +1879,23 @@ function AdminSection({ ctx }: { ctx: any }) {
         notify(u.is_active ? 'User deactivated' : 'User reactivated', 'success')
       } catch (e: any) {
         notify(e.message || 'Could not update the user', 'error')
+      }
+    }
+
+    const createUser = async (e: any) => {
+      e.preventDefault()
+      setCreatingUser(true)
+      setCreateUserError('')
+      try {
+        await api('/admin/users', { method: 'POST', body: JSON.stringify(newUser) })
+        setShowCreateUser(false)
+        setNewUser({ email: '', password: '', full_name: '', role: 'analyst' })
+        await loadUsers()
+        notify('User created', 'success')
+      } catch (e: any) {
+        setCreateUserError(e.message || 'Could not create the user')
+      } finally {
+        setCreatingUser(false)
       }
     }
 
@@ -1714,6 +1959,7 @@ function AdminSection({ ctx }: { ctx: any }) {
         <SplitPanel
           title="Users"
           loading={loading}
+          action={<button type="button" onClick={() => { setShowCreateUser(true); setCreateUserError('') }} style={styles.darkActionBtn}>+ Create user</button>}
           items={users}
           selectedId={selectedUserId}
           onSelect={(u) => setSelectedUserId(u.id)}
@@ -1822,6 +2068,55 @@ function AdminSection({ ctx }: { ctx: any }) {
           </div>
         </div>
 
+        {showCreateUser && (
+          <Modal title="Create user" onClose={() => { if (!creatingUser) setShowCreateUser(false) }}>
+            <form onSubmit={createUser}>
+              {createUserError && (
+                <div role="alert" style={{ color: '#fca5a5', fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                  {createUserError}
+                </div>
+              )}
+              <Field label="Email" htmlFor="new-user-email" tone="dark" required>
+                <TextInput
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  autoFocus
+                  required
+                />
+              </Field>
+              <Field label="Full name" htmlFor="new-user-name" tone="dark">
+                <TextInput
+                  value={newUser.full_name}
+                  onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                />
+              </Field>
+              <Field label="Temporary password" htmlFor="new-user-password" tone="dark" required hint="At least 8 characters. Share it securely; they can change it after signing in.">
+                <TextInput
+                  type="text"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  required
+                />
+              </Field>
+              <Field label="Role" htmlFor="new-user-role" tone="dark" required>
+                <Select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  tone="dark"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="analyst">Analyst</option>
+                  <option value="client">Client</option>
+                </Select>
+              </Field>
+              <Button type="submit" loading={creatingUser} disabled={!newUser.email.trim() || newUser.password.length < 8}>
+                Create user
+              </Button>
+            </form>
+          </Modal>
+        )}
+
         {resetUser && (
           <Modal title={`Reset password for ${resetUser.email}`} onClose={closeReset}>
             {temporaryPassword ? (
@@ -1893,6 +2188,9 @@ function MonitorsSection({ ctx }: { ctx: any }) {
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<any>(null)
+    const [editingId, setEditingId] = useState<any>(null)
+    const [editForm, setEditForm] = useState({ target: '', monitor_type: '' })
+    const [savingEdit, setSavingEdit] = useState(false)
 
     useEffect(() => {
       Promise.all([api('/monitors'), api('/clients')])
@@ -1971,6 +2269,26 @@ function MonitorsSection({ ctx }: { ctx: any }) {
       }
     }
 
+    const startEdit = (m: any) => {
+      setEditForm({ target: m.target, monitor_type: m.monitor_type })
+      setEditingId(m.id)
+    }
+
+    const saveEdit = async (e: any) => {
+      e.preventDefault()
+      setSavingEdit(true)
+      try {
+        await api(`/monitors/${editingId}`, { method: 'PATCH', body: JSON.stringify(editForm) })
+        setEditingId(null)
+        await refreshMonitors()
+        notify('Monitor updated', 'success')
+      } catch (e: any) {
+        notify(e.message || 'Could not update the monitor', 'error')
+      } finally {
+        setSavingEdit(false)
+      }
+    }
+
     const canSubmit = Boolean(newMonitor.client_id && newMonitor.target.trim())
 
     return (
@@ -2044,16 +2362,44 @@ function MonitorsSection({ ctx }: { ctx: any }) {
           )}
           renderDetail={(m) => (
             <>
-              <div style={styles.detailHeading}>{m.target}</div>
-              <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
-              {canManage && (
-                <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run check now</button>
-                  <button type="button" onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
-                    {m.is_active ? 'Pause' : 'Resume'}
-                  </button>
-                  <button type="button" onClick={() => setPendingDelete(m)} style={styles.darkActionBtn}>Delete</button>
-                </div>
+              {editingId === m.id ? (
+                <form onSubmit={saveEdit}>
+                  <Field label="Target" htmlFor="monitor-edit-target" tone="dark" required>
+                    <TextInput
+                      value={editForm.target}
+                      onChange={(e) => setEditForm({ ...editForm, target: e.target.value })}
+                      autoFocus
+                      required
+                    />
+                  </Field>
+                  <Field label="What to watch" htmlFor="monitor-edit-type" tone="dark">
+                    <Select value={editForm.monitor_type} onChange={(e) => setEditForm({ ...editForm, monitor_type: e.target.value })} tone="dark">
+                      <option value="access_anomaly">Access anomaly detection</option>
+                      <option value="config_drift">Configuration drift</option>
+                      <option value="leaked_cred">Leaked credentials</option>
+                      <option value="policy_violation">Policy violation</option>
+                    </Select>
+                  </Field>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <Button type="submit" loading={savingEdit} disabled={!editForm.target.trim()}>Save changes</Button>
+                    <Button type="button" variant="secondaryDark" onClick={() => setEditingId(null)} disabled={savingEdit}>Cancel</Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div style={styles.detailHeading}>{m.target}</div>
+                  <div style={styles.detailSub}>{m.monitor_type} · last check {m.last_check ? new Date(m.last_check).toLocaleString() : 'never'}</div>
+                  {canManage && (
+                    <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button type="button" onClick={() => runCheck(m.id)} style={styles.darkActionBtn}>Run check now</button>
+                      <button type="button" onClick={() => startEdit(m)} style={styles.darkActionBtn}>Edit</button>
+                      <button type="button" onClick={() => toggleActive(m)} style={styles.darkActionBtn}>
+                        {m.is_active ? 'Pause' : 'Resume'}
+                      </button>
+                      <button type="button" onClick={() => setPendingDelete(m)} style={styles.darkActionBtn}>Delete</button>
+                    </div>
+                  )}
+                </>
               )}
               {monitorAlerts.length > 0 && (
                 <>
@@ -2245,6 +2591,9 @@ function SchedulesSection({ ctx }: { ctx: any }) {
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<any>(null)
+    const [editingId, setEditingId] = useState<any>(null)
+    const [editForm, setEditForm] = useState({ scan_type: 'vulnerability', interval_minutes: '1440' })
+    const [savingEdit, setSavingEdit] = useState(false)
 
     const load = async () => {
       try {
@@ -2319,6 +2668,29 @@ function SchedulesSection({ ctx }: { ctx: any }) {
         load()
       } catch (e: any) {
         notify(e.message || 'Could not delete the schedule', 'error')
+      }
+    }
+
+    const startEdit = (s: any) => {
+      setEditForm({ scan_type: s.scan_type, interval_minutes: String(s.interval_minutes) })
+      setEditingId(s.id)
+    }
+
+    const saveEdit = async (e: any) => {
+      e.preventDefault()
+      setSavingEdit(true)
+      try {
+        await api(`/scan-schedules/${editingId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ scan_type: editForm.scan_type, interval_minutes: parseInt(editForm.interval_minutes) }),
+        })
+        setEditingId(null)
+        notify('Schedule updated', 'success')
+        load()
+      } catch (e: any) {
+        notify(e.message || 'Could not update the schedule', 'error')
+      } finally {
+        setSavingEdit(false)
       }
     }
 
@@ -2398,24 +2770,63 @@ function SchedulesSection({ ctx }: { ctx: any }) {
                 <tr><td colSpan={5} style={styles.tdEmpty}>No schedules yet. Create one above to run scans automatically.</td></tr>
               )}
               {schedules.map((s: any) => (
-                <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <td style={styles.td}>{s.client?.name || s.client_id}</td>
-                  <td style={styles.td}>{s.scan_type}</td>
-                  <td style={styles.td}>{humanInterval(s.interval_minutes)}</td>
-                  <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>
-                    {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <Badge tone={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Paused'}</Badge>
-                    {canManage && (
-                      <>
-                        <button type="button" onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
-                        <button type="button" onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
-                        <button type="button" onClick={() => setPendingDelete(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
+                editingId === s.id ? (
+                  <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={styles.td}>{s.client?.name || s.client_id}</td>
+                    <td style={styles.td} colSpan={2}>
+                      <form onSubmit={saveEdit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          aria-label="Assessment type"
+                          value={editForm.scan_type}
+                          onChange={(e) => setEditForm({ ...editForm, scan_type: e.target.value })}
+                          style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.07)', color: TEXT, border: `1px solid ${BORDER_STRONG}` }}
+                        >
+                          <option value="vulnerability">Vulnerability</option>
+                          <option value="full">Full assessment</option>
+                          <option value="web">Web application</option>
+                        </select>
+                        <select
+                          aria-label="Frequency"
+                          value={editForm.interval_minutes}
+                          onChange={(e) => setEditForm({ ...editForm, interval_minutes: e.target.value })}
+                          style={{ ...styles.inputSmall, background: 'rgba(255,255,255,0.07)', color: TEXT, border: `1px solid ${BORDER_STRONG}` }}
+                        >
+                          <option value="60">Every hour</option>
+                          <option value="360">Every 6 hours</option>
+                          <option value="1440">Daily</option>
+                          <option value="10080">Weekly</option>
+                          <option value="43200">Monthly</option>
+                        </select>
+                        <button type="submit" disabled={savingEdit} style={styles.buttonSmall}>Save</button>
+                        <button type="button" onClick={() => setEditingId(null)} disabled={savingEdit} style={styles.buttonGhostLight}>Cancel</button>
+                      </form>
+                    </td>
+                    <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>
+                      {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
+                    </td>
+                    <td />
+                  </tr>
+                ) : (
+                  <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={styles.td}>{s.client?.name || s.client_id}</td>
+                    <td style={styles.td}>{s.scan_type}</td>
+                    <td style={styles.td}>{humanInterval(s.interval_minutes)}</td>
+                    <td style={{ ...styles.td, fontSize: '0.8rem', color: TEXT_FAINT }}>
+                      {s.next_run ? new Date(s.next_run).toLocaleString() : '—'}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Badge tone={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Paused'}</Badge>
+                      {canManage && (
+                        <>
+                          <button type="button" onClick={() => runNow(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Run now</button>
+                          <button type="button" onClick={() => startEdit(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Edit</button>
+                          <button type="button" onClick={() => toggle(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>{s.is_active ? 'Pause' : 'Resume'}</button>
+                          <button type="button" onClick={() => setPendingDelete(s)} style={{ ...styles.buttonGhostLight, marginLeft: '0.4rem' }}>Delete</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )
               ))}
             </tbody>
           </table>
@@ -2603,35 +3014,83 @@ function CodeScansSection({ ctx }: { ctx: any }) {
 // COMPLIANCE
 // ============================================================
 function ComplianceSection({ ctx }: { ctx: any }) {
-  const { api, notify } = ctx
+  const { api, token, notify, clients, setClients } = ctx
+    const [loading, setLoading] = useState(true)
+    const [selectedClientId, setSelectedClientId] = useState('')
+    const [clientFindings, setClientFindings] = useState<any[]>([])
+    const [sectorOverride, setSectorOverride] = useState('')
     const [summary, setSummary] = useState<any>(null)
     const [mappings, setMappings] = useState<any[]>([])
-    const [clientSector, setClientSector] = useState('banking')
+    const [working, setWorking] = useState(false)
+
+    useEffect(() => {
+      api('/clients')
+        .then((data: any) => setClients(Array.isArray(data) ? data : []))
+        .catch((e: any) => notify(e.message || 'Could not load clients', 'error'))
+        .finally(() => setLoading(false))
+    }, [token])
+
+    const selectedClient = clients.find((c: any) => String(c.id) === selectedClientId)
+    const effectiveSector = sectorOverride || selectedClient?.sector || 'other'
+
+    useEffect(() => {
+      setSummary(null)
+      setMappings([])
+      setSectorOverride('')
+      if (!selectedClientId) {
+        setClientFindings([])
+        return
+      }
+      api(`/scans?limit=500`)
+        .then((scans: any) => {
+          const findings = (Array.isArray(scans) ? scans : [])
+            .filter((s: any) => String(s.client_id) === selectedClientId)
+            .flatMap((s: any) => s.findings || [])
+          setClientFindings(findings)
+        })
+        .catch((e: any) => notify(e.message || 'Could not load findings for this client', 'error'))
+    }, [selectedClientId])
+
+    const counts = {
+      total: clientFindings.length,
+      critical: clientFindings.filter((f: any) => f.severity === 'critical').length,
+      high: clientFindings.filter((f: any) => f.severity === 'high').length,
+      medium: clientFindings.filter((f: any) => f.severity === 'medium').length,
+    }
 
     const runSummary = async () => {
+      setWorking(true)
       try {
-        const res = await api(`/compliance/summary?total_findings=10&critical=2&high=3&medium=4&client_sector=${clientSector}`)
+        const params = new URLSearchParams({
+          total_findings: String(counts.total),
+          critical: String(counts.critical),
+          high: String(counts.high),
+          medium: String(counts.medium),
+          client_sector: effectiveSector,
+        })
+        const res = await api(`/compliance/summary?${params.toString()}`)
         setSummary(res)
       } catch (e: any) {
         notify(e.message || 'Could not build the summary', 'error')
+      } finally {
+        setWorking(false)
       }
     }
 
     const runMap = async () => {
-      const findings = [
-        { title: 'Open SSH port on public IP', severity: 'high', id: 1 },
-        { title: 'Hardcoded API key in source', severity: 'critical', id: 2 },
-        { title: 'SSL verification disabled', severity: 'medium', id: 3 },
-      ]
+      setWorking(true)
       try {
+        const findings = clientFindings.map((f: any) => ({ title: f.title, severity: f.severity, id: f.id }))
         const res = await api('/compliance/map', {
           method: 'POST',
-          body: JSON.stringify({ findings, client_sector: clientSector }),
+          body: JSON.stringify({ findings, client_sector: effectiveSector }),
         })
         setMappings(res.mappings || [])
         notify('Compliance mapping generated', 'success')
       } catch (e: any) {
         notify(e.message || 'Could not generate the mapping', 'error')
+      } finally {
+        setWorking(false)
       }
     }
 
@@ -2639,24 +3098,47 @@ function ComplianceSection({ ctx }: { ctx: any }) {
       <div style={styles.section}>
         <h1 style={styles.pageTitle}>Compliance — Senegal Cyber Law 2026</h1>
         <p style={styles.hint}>
-          Map findings to regulatory obligations under Senegal's new cybersecurity law:
-          National CERT, mandatory incident reporting, vulnerability disclosure,
-          local hosting, and AI governance.
+          Map a client's actual findings to regulatory obligations under Senegal's new
+          cybersecurity law: National CERT, mandatory incident reporting, vulnerability
+          disclosure, local hosting, and AI governance.
         </p>
 
         <div style={styles.lightCard}>
-          <h3 style={styles.h3}>Compliance Summary</h3>
-          <div style={{ maxWidth: 320 }}>
-            <Field label="Client sector" htmlFor="compliance-sector">
-              <Select value={clientSector} onChange={(e) => setClientSector(e.target.value)}>
-                <option value="banking">Banking / Mobile Money</option>
-                <option value="telecom">Telecom</option>
-                <option value="government">Government</option>
-                <option value="other">Other</option>
-              </Select>
-            </Field>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 260px' }}>
+              <Field label="Client" htmlFor="compliance-client" hint={loading ? 'Loading clients…' : undefined}>
+                <Select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} disabled={loading}>
+                  <option value="">Select a client</option>
+                  {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <div style={{ flex: '1 1 260px' }}>
+              <Field
+                label="Sector"
+                htmlFor="compliance-sector"
+                hint={selectedClient?.sector ? `From ${selectedClient.name}'s profile; override here if needed` : 'This client has no sector set — set one on the Clients page, or override here'}
+              >
+                <Select value={effectiveSector} onChange={(e) => setSectorOverride(e.target.value)} disabled={!selectedClientId}>
+                  <option value="banking">Banking / Mobile Money</option>
+                  <option value="telecom">Telecom</option>
+                  <option value="government">Government</option>
+                  <option value="other">Other</option>
+                </Select>
+              </Field>
+            </div>
           </div>
-          <Button onClick={runSummary}>Run summary</Button>
+          {selectedClientId && (
+            <p style={styles.mutedText}>
+              {counts.total} finding{counts.total === 1 ? '' : 's'} across this client's scans
+              {counts.total > 0 && ` — ${counts.critical} critical, ${counts.high} high, ${counts.medium} medium`}.
+            </p>
+          )}
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Compliance Summary</h3>
+          <Button onClick={runSummary} loading={working} disabled={!selectedClientId}>Run summary</Button>
           {summary && (
             <div style={{ marginTop: '1rem', padding: '1rem', background: SURFACE_SUNKEN, borderRadius: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
@@ -2676,10 +3158,18 @@ function ComplianceSection({ ctx }: { ctx: any }) {
 
         <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
           <h3 style={styles.h3}>Findings → Law Mapping</h3>
-          <Button variant="secondary" onClick={runMap}>Generate mappings</Button>
-          {mappings.length === 0 && (
+          <Button variant="secondary" onClick={runMap} loading={working} disabled={!selectedClientId || counts.total === 0}>
+            Generate mappings
+          </Button>
+          {!selectedClientId && (
+            <p style={{ ...styles.mutedText, marginTop: '0.75rem' }}>Select a client above to map their real findings.</p>
+          )}
+          {selectedClientId && counts.total === 0 && (
+            <p style={{ ...styles.mutedText, marginTop: '0.75rem' }}>This client has no findings yet — run a scan first.</p>
+          )}
+          {mappings.length === 0 && selectedClientId && counts.total > 0 && (
             <p style={{ ...styles.mutedText, marginTop: '0.75rem' }}>
-              No mapping generated yet. This maps sample findings to Senegal Cyber Law obligations.
+              No mapping generated yet.
             </p>
           )}
           {mappings.length > 0 && (
@@ -2788,7 +3278,31 @@ function ReportsSection({ ctx }: { ctx: any }) {
 
         {markdown && (
           <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
-            <h3 style={styles.h3}>Markdown Export</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={styles.h3}>Markdown Export</h3>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => { navigator.clipboard?.writeText(markdown); notify('Report copied to clipboard', 'success') }}
+                >
+                  Copy
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const blob = new Blob([markdown], { type: 'text/markdown' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `ultorn-report-scan-${report?.scan_id ?? 'export'}.md`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  Download .md
+                </Button>
+              </div>
+            </div>
             <div style={styles.codeBlock}>{markdown}</div>
           </div>
         )}

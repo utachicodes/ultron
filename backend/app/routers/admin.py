@@ -20,6 +20,36 @@ def admin_list_users(
     return db.query(models.User).order_by(models.User.created_at.desc()).all()
 
 
+@router.post("/admin/users", response_model=schemas.UserOut)
+def admin_create_user(
+    user_in: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_role(models.UserRole.admin)),
+):
+    """Admin-provisioned account, role chosen up front. Unlike the public
+    POST /auth/register (always role=client), this is the only way to hand
+    someone analyst or admin access without them self-registering first and
+    an admin promoting them afterwards."""
+    if db.query(models.User).filter(models.User.email == user_in.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = models.User(
+        email=user_in.email,
+        hashed_password=auth.get_password_hash(user_in.password),
+        full_name=user_in.full_name,
+        role=user_in.role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    audit.log_action(
+        db, "admin_create_user", user_id=current_user.id,
+        resource_type="user", resource_id=str(user.id),
+        details={"email": user.email, "role": user.role.value},
+    )
+    return user
+
+
 @router.patch("/admin/users/{user_id}", response_model=schemas.UserOut)
 def admin_update_user(
     user_id: int,

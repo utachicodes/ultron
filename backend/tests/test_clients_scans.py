@@ -22,6 +22,81 @@ def test_client_scopes_crud(client, sample_client):
     assert listed.status_code == 200
     assert len(listed.json()) == 1
 
+    updated = client.patch(
+        f"/clients/{sample_client['id']}/scopes/{scope['id']}",
+        json={"is_excluded": True},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["is_excluded"] is True
+
+    deleted = client.delete(f"/clients/{sample_client['id']}/scopes/{scope['id']}")
+    assert deleted.status_code == 200
+    assert client.get(f"/clients/{sample_client['id']}/scopes").json() == []
+
+
+def test_update_scope_404_for_wrong_client(client, sample_client):
+    scope = client.post(
+        f"/clients/{sample_client['id']}/scopes",
+        json={"target": "example.com", "target_type": "domain"},
+    ).json()
+    other = client.post("/clients", json={"name": "Other Co"}).json()
+    res = client.patch(
+        f"/clients/{other['id']}/scopes/{scope['id']}",
+        json={"is_excluded": True},
+    )
+    assert res.status_code == 404
+
+
+def test_update_client(client, sample_client):
+    res = client.patch(
+        f"/clients/{sample_client['id']}",
+        json={"contact_email": "new-sec@testbank.sn", "is_active": False},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["contact_email"] == "new-sec@testbank.sn"
+    assert body["is_active"] is False
+    assert body["name"] == "Test Bank"
+
+
+def test_delete_client_cascades(client, sample_client, db):
+    from app import models
+
+    client.post(
+        f"/clients/{sample_client['id']}/scopes",
+        json={"target": "127.0.0.1", "target_type": "ip"},
+    )
+    scan = client.post(
+        "/scans",
+        json={"client_id": sample_client["id"], "scan_type": "vulnerability"},
+    ).json()
+    client.post(f"/scans/{scan['id']}/run")
+
+    res = client.delete(f"/clients/{sample_client['id']}")
+    assert res.status_code == 200, res.text
+
+    assert client.get(f"/clients/{sample_client['id']}").status_code == 404
+    assert db.query(models.Scan).filter(models.Scan.client_id == sample_client["id"]).count() == 0
+    assert db.query(models.ScanScope).filter(models.ScanScope.client_id == sample_client["id"]).count() == 0
+
+
+def test_analyst_cannot_delete_client(anon, db):
+    from app import models, auth
+
+    analyst = models.User(
+        email="analyst@test.local",
+        hashed_password=auth.get_password_hash("analyst123"),
+        role=models.UserRole.analyst,
+    )
+    db.add(analyst)
+    db.commit()
+    token = auth.create_access_token(data={"sub": analyst.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = anon.post("/clients", json={"name": "Analyst's Client"}, headers=headers).json()
+    res = anon.delete(f"/clients/{created['id']}", headers=headers)
+    assert res.status_code == 403
+
 
 def test_scan_runs_without_verification_gate(client, sample_client):
     client.post(

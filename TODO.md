@@ -100,6 +100,17 @@ as items are picked up or completed. It's the source of truth for "what's left."
       CI currently only checks that each side imports/builds, not behavior
 
 ### Product
+- [x] Full CRUD completeness pass across the console: clients gained `PATCH`/`DELETE`
+      (admin-only delete, cascades scans/findings/monitors/alerts/schedules/code-scans) and a
+      `sector` field (drives Compliance, previously an unused `getattr(client, "sector", None)`
+      with no column behind it); scan scopes gained `PATCH`/`DELETE` plus visible
+      excluded/verified status; monitors and scan schedules gained inline edit (target/type,
+      type/interval) on top of their existing pause/resume/delete; Admin gained `POST
+      /admin/users` so an admin can hand out analyst/admin access directly instead of someone
+      self-registering as a client first and being promoted. Compliance now maps a selected
+      client's real findings (and real sector) instead of three hardcoded sample findings.
+      Reports gained Copy/Download .md. Findings, scans, code scans, alerts, and the audit log
+      stay delete-free on purpose — they're evidence of record, not configuration
 - [x] Self-service client registration flow: `/signup` page (register, then auto-login and
       redirect to `/console`); the landing page's hero "Get Started" CTA points there instead
       of straight to the login screen

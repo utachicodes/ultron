@@ -37,6 +37,9 @@ class Client(Base):
     legal_name = Column(String(255))
     contact_email = Column(String(255))
     contact_phone = Column(String(50))
+    # Drives compliance/report sector-specific obligations (reports.py,
+    # compliance.py already read this via getattr(client, "sector", None)).
+    sector = Column(String(50))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
