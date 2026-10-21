@@ -23,7 +23,11 @@ export default defineConfig({
   // honest way to run this against one backend anyway.
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // /auth/register and /auth/token are rate-limited per IP; run the backend
+  // with higher LOGIN_RATE_LIMIT/REGISTER_RATE_LIMIT for this suite (see
+  // e2e/README.md). One retry is still kept as a safety net for whoever
+  // forgets to -- a genuine bug fails on the retry too.
+  retries: 1,
   reporter: 'list',
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',

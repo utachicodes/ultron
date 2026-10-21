@@ -6,10 +6,13 @@ Real browser, real backend -- these drive the actual app instead of mocking
 ## Run them
 
 ```bash
-# 1. Backend, with demo data seeded
+# 1. Backend, with demo data seeded and generous auth rate limits (the
+#    suite logs in dozens of times across its specs -- the production
+#    defaults of 10 logins/60s and 5 registrations/300s per IP are tuned
+#    for one real client and will 429 a full local run)
 cd backend
 python seed_demo.py
-uvicorn app.main:app --reload &
+LOGIN_RATE_LIMIT=1000 REGISTER_RATE_LIMIT=1000 uvicorn app.main:app --reload &
 
 # 2. Frontend
 cd frontend
@@ -19,6 +22,12 @@ npm run dev &
 npm run test:e2e          # headless
 npm run test:e2e:ui       # interactive UI mode, lets you step through each test
 ```
+
+If you run the backend with its normal rate limits and see a spec fail with
+a login that silently lands back on the sign-in screen (or a 429), that's
+the limiter doing its job against the suite's login volume, not a bug --
+restart the backend to clear its in-memory counters, or use the env vars
+above.
 
 ## What's covered
 

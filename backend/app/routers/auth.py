@@ -17,7 +17,10 @@ router = APIRouter()
 # ============================================================
 @router.post("/auth/token", response_model=schemas.Token)
 def login(form_data: dict, request: Request, db: Session = Depends(get_db)):
-    rate_limit.check("login", rate_limit.client_ip(request), limit=10, window_seconds=60)
+    rate_limit.check(
+        "login", rate_limit.client_ip(request),
+        limit=settings.login_rate_limit, window_seconds=settings.login_rate_window_seconds,
+    )
     user = auth.authenticate_user(db, form_data.get("email", ""), form_data.get("password", ""))
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -32,7 +35,10 @@ def read_current_user(current_user: models.User = Depends(auth.get_current_user)
 
 @router.post("/auth/register", response_model=schemas.UserOut)
 def register(user_in: schemas.RegisterCreate, request: Request, db: Session = Depends(get_db)):
-    rate_limit.check("register", rate_limit.client_ip(request), limit=5, window_seconds=300)
+    rate_limit.check(
+        "register", rate_limit.client_ip(request),
+        limit=settings.register_rate_limit, window_seconds=settings.register_rate_window_seconds,
+    )
     if db.query(models.User).filter(models.User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     user = models.User(

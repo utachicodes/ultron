@@ -91,6 +91,16 @@ class Settings(BaseSettings):
     # Password reset
     password_reset_token_expire_minutes: int = 30
 
+    # Rate limits on /auth/token and /auth/register. Defaults are tuned
+    # against a single real client; a shared dev backend driving an E2E
+    # suite (many logins from one IP in a tight window, e.g. the Playwright
+    # suite in frontend/e2e/) can trip them on login volume alone. Raise
+    # these via env vars for that case rather than disabling the limiter.
+    login_rate_limit: int = 10
+    login_rate_window_seconds: int = 60
+    register_rate_limit: int = 5
+    register_rate_window_seconds: int = 300
+
     # Finding evidence attachments
     attachment_storage_dir: str = "./attachments"
     attachment_max_size_mb: int = 10
