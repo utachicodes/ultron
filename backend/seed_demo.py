@@ -23,7 +23,7 @@ from app.auth import get_password_hash
 from app.database import Base, SessionLocal, engine
 
 
-DEMO_CLIENTS = ["Sahel Bank", "Sonatel Mobile"]
+DEMO_CLIENTS = ["Sahel Bank", "Sonatel Mobile", "Dakar United FC"]
 
 # One-click "try it" personas for the login screen's demo buttons. Like the
 # rest of this script, they only exist if an operator explicitly runs
@@ -47,11 +47,17 @@ DEMO_ACCOUNTS = [
         "full_name": "Sahel Bank Security Team",
         "role": "client",
     },
+    {
+        "email": "client-demo@dakarunitedfc.sn",
+        "password": "demo-club-123",
+        "full_name": "Dakar United FC Operations",
+        "role": "client",
+    },
 ]
 
 
-def _findings_for(bank: bool):
-    if bank:
+def _findings_for(kind: str):
+    if kind == "bank":
         return [
             ("TLS certificate expires in 9 days", "high", "9.1", "A02:2021",
              "bank.sn", "Expiry: 2026-10-28. Issuer: Let's Encrypt R3.", "Renew and automate certificate rotation."),
@@ -64,15 +70,42 @@ def _findings_for(bank: bool):
             ("Verbose server banner", "low", "3.1", "A05:2021",
              "bank.sn", "Server: nginx/1.18.0 exposes the exact version.", "Suppress version tokens."),
         ]
+    if kind == "telecom":
+        return [
+            ("API key committed to public repository", "critical", "9.6", "A02:2021",
+             "api.sonatel.sn", "Pattern sk-live-… found in a public GitHub mirror.", "Rotate the key and purge git history."),
+            ("Admin panel reachable without MFA", "high", "8.2", "A07:2021",
+             "admin.sonatel.sn", "Password-only login accepted from a new ASN.", "Enforce MFA for all privileged accounts."),
+            ("Open Redis port 6379", "high", "7.5", "A05:2021",
+             "10.20.0.14", "Redis responded to PING without authentication.", "Bind to localhost and require AUTH."),
+            ("Cookie missing Secure flag", "low", "3.7", "A05:2021",
+             "api.sonatel.sn", "Set-Cookie: session=… without Secure.", "Add Secure; HttpOnly; SameSite=Lax."),
+        ]
+    # Sports demo tenant. Findings are deliberately spread across the systems
+    # a club actually runs: ticketing, payments, academy, stadium gateway,
+    # membership, and the public site.
     return [
-        ("API key committed to public repository", "critical", "9.6", "A02:2021",
-         "api.sonatel.sn", "Pattern sk-live-… found in a public GitHub mirror.", "Rotate the key and purge git history."),
-        ("Admin panel reachable without MFA", "high", "8.2", "A07:2021",
-         "admin.sonatel.sn", "Password-only login accepted from a new ASN.", "Enforce MFA for all privileged accounts."),
-        ("Open Redis port 6379", "high", "7.5", "A05:2021",
-         "10.20.0.14", "Redis responded to PING without authentication.", "Bind to localhost and require AUTH."),
-        ("Cookie missing Secure flag", "low", "3.7", "A05:2021",
-         "api.sonatel.sn", "Set-Cookie: session=… without Secure.", "Add Secure; HttpOnly; SameSite=Lax."),
+        ("Exposed ticketing admin panel", "critical", "9.4", "A01:2021",
+         "tickets.dakarunitedfc.sn", "GET /admin returned HTTP 200 with a public login form.",
+         "Restrict the panel to the club VPN, enforce MFA, and remove public exposure."),
+        ("Payment API key committed to fan-app repository", "critical", "9.1", "A02:2021",
+         "api.dakarunitedfc.sn", "sk-live-… found in src/config.ts of the public fan-app repo.",
+         "Rotate the key with the payment provider and purge it from git history."),
+        ("Academy portal allows password-only staff login", "high", "8.0", "A07:2021",
+         "academy.dakarunitedfc.sn", "Back-office login accepted without MFA from a new ASN.",
+         "Require MFA for staff and guardian accounts and review session lifetime."),
+        ("Open HTTP admin console on stadium gateway", "high", "7.8", "A05:2021",
+         "196.207.10.20", "Port 8080 returned a POS gateway login page over plain HTTP.",
+         "Move management to the club VPN and terminate TLS at the edge."),
+        ("Outdated WordPress plugin on club site", "high", "7.4", "A06:2021",
+         "dakarunitedfc.sn", "Plugin version known vulnerable; the footer discloses it.",
+         "Update the plugin, remove unused extensions, and schedule a maintenance window."),
+        ("Missing HSTS on membership login", "medium", "5.3", "A05:2021",
+         "members.dakarunitedfc.sn", "Strict-Transport-Security absent on the login response.",
+         "Send max-age=31536000; includeSubDomains."),
+        ("Verbose server banner", "low", "3.1", "A05:2021",
+         "dakarunitedfc.sn", "Server: nginx/1.18.0 exposes the exact version.",
+         "Suppress version tokens at the edge."),
     ]
 
 
@@ -119,7 +152,12 @@ def _delete_demo(db):
         for monitor in monitors:
             db.query(models.Alert).filter(models.Alert.monitor_id == monitor.id).delete()
             db.delete(monitor)
-        db.query(models.CodeScan).filter(models.CodeScan.client_id == client.id).delete()
+        code_scans = db.query(models.CodeScan).filter(models.CodeScan.client_id == client.id).all()
+        for code_scan in code_scans:
+            db.query(models.CodeScanIssue).filter(
+                models.CodeScanIssue.code_scan_id == code_scan.id
+            ).delete()
+            db.delete(code_scan)
         db.query(models.ScanSchedule).filter(models.ScanSchedule.client_id == client.id).delete()
         db.query(models.ScanScope).filter(models.ScanScope.client_id == client.id).delete()
         db.delete(client)
@@ -155,6 +193,7 @@ def seed(reset: bool = False) -> None:
         demo_users = _ensure_demo_accounts(db)
         admin = demo_users["admin@ultorn.local"]
         client_demo_user = demo_users["client-demo@sahelbank.sn"]
+        sports_demo_user = demo_users["client-demo@dakarunitedfc.sn"]
 
         if reset:
             _delete_demo(db)
@@ -199,7 +238,7 @@ def seed(reset: bool = False) -> None:
             )
             db.add(scan)
             db.flush()
-            _seed_findings(db, scan, _findings_for(True))
+            _seed_findings(db, scan, _findings_for("bank"))
 
             monitor = models.Monitor(
                 client_id=bank.id,
@@ -303,7 +342,7 @@ def seed(reset: bool = False) -> None:
             )
             db.add(scan)
             db.flush()
-            _seed_findings(db, scan, _findings_for(False))
+            _seed_findings(db, scan, _findings_for("telecom"))
 
             monitor = models.Monitor(
                 client_id=telco.id,
@@ -324,6 +363,155 @@ def seed(reset: bool = False) -> None:
                     status="open",
                 )
             )
+
+        if "Dakar United FC" not in existing:
+            club = models.Client(
+                name="Dakar United FC",
+                legal_name="Dakar United Football Club SUARL",
+                contact_email="operations@dakarunitedfc.sn",
+                contact_phone="+221 33 222 2222",
+                sector="sports",
+                owner_id=sports_demo_user.id,
+            )
+            db.add(club)
+            db.flush()
+            for target, target_type in [
+                ("dakarunitedfc.sn", "domain"),
+                ("https://tickets.dakarunitedfc.sn", "url"),
+                ("https://academy.dakarunitedfc.sn", "url"),
+                ("196.207.10.20", "ip"),
+            ]:
+                db.add(models.ScanScope(
+                    client_id=club.id,
+                    target=target,
+                    target_type=target_type,
+                    verified=True,
+                ))
+            # An explicitly excluded legacy fan site demonstrates that the
+            # scope is a contract: not everything the club owns is in play.
+            db.add(models.ScanScope(
+                client_id=club.id,
+                target="https://legacy-fans.dakarunitedfc.sn",
+                target_type="url",
+                is_excluded=True,
+            ))
+
+            scan = models.Scan(
+                client_id=club.id,
+                requested_by_id=admin.id,
+                scan_type="vulnerability",
+                status="completed",
+                started_at=datetime.utcnow() - timedelta(hours=2),
+                completed_at=datetime.utcnow() - timedelta(hours=1, minutes=45),
+            )
+            db.add(scan)
+            db.flush()
+            _seed_findings(db, scan, _findings_for("sports"))
+
+            ticketing_monitor = models.Monitor(
+                client_id=club.id,
+                target="https://tickets.dakarunitedfc.sn",
+                monitor_type="access_anomaly",
+                baseline_config=json.dumps({"status_code": 200}),
+                last_check=datetime.utcnow() - timedelta(minutes=6),
+                next_check=datetime.utcnow() + timedelta(minutes=54),
+            )
+            leak_monitor = models.Monitor(
+                client_id=club.id,
+                target="https://dakarunitedfc.sn",
+                monitor_type="leaked_cred",
+                last_check=datetime.utcnow() - timedelta(minutes=15),
+                next_check=datetime.utcnow() + timedelta(minutes=45),
+            )
+            stream_monitor = models.Monitor(
+                client_id=club.id,
+                target="https://stream.dakarunitedfc.sn",
+                monitor_type="config_drift",
+                baseline_config=json.dumps({"server": "nginx/1.24.0"}),
+                last_check=datetime.utcnow() - timedelta(minutes=9),
+                next_check=datetime.utcnow() + timedelta(minutes=51),
+            )
+            db.add_all([ticketing_monitor, leak_monitor, stream_monitor])
+            db.flush()
+            db.add_all([
+                models.Alert(
+                    monitor_id=ticketing_monitor.id,
+                    title="Ticketing endpoint returned HTTP 503",
+                    description="tickets.dakarunitedfc.sn failed two checks in a row, 36 hours before kickoff.",
+                    severity="high",
+                    evidence=json.dumps({"status_code": 503, "consecutive_failures": 2}),
+                    status="open",
+                ),
+                models.Alert(
+                    monitor_id=leak_monitor.id,
+                    title="Leaked payment key on public fan-app repository",
+                    description="A live-looking sk-live key was found in the club's public fan-app repo.",
+                    severity="critical",
+                    evidence=json.dumps({"issue_type": "exposed_secret_key", "source": "github"}),
+                    status="open",
+                ),
+                models.Alert(
+                    monitor_id=stream_monitor.id,
+                    title="Server header changed on stream.dakarunitedfc.sn",
+                    description="Baseline nginx/1.24.0, observed nginx/1.18.0.",
+                    severity="medium",
+                    evidence=json.dumps({"baseline": "nginx/1.24.0", "current": "nginx/1.18.0"}),
+                    status="acknowledged",
+                ),
+            ])
+
+            db.add(models.ScanSchedule(
+                client_id=club.id,
+                scan_type="vulnerability",
+                interval_minutes=1440,
+                last_run=datetime.utcnow() - timedelta(hours=2),
+                next_run=datetime.utcnow() + timedelta(hours=22),
+            ))
+
+            code = models.CodeScan(
+                client_id=club.id,
+                repository_url="github.com/dakar-united/fan-app",
+                branch="main",
+                status="completed",
+                total_files=96,
+                issues_found=4,
+            )
+            db.add(code)
+            db.flush()
+            db.add_all([
+                models.CodeScanIssue(
+                    code_scan_id=code.id,
+                    file_path="src/config.ts",
+                    line_number=12,
+                    issue_type="hardcoded_secret",
+                    severity="high",
+                    description="Payment provider key literal assigned in source.",
+                ),
+                models.CodeScanIssue(
+                    code_scan_id=code.id,
+                    file_path="src/api.ts",
+                    line_number=28,
+                    issue_type="ssl_verification_disabled",
+                    severity="medium",
+                    description="TLS verification turned off for ticket API calls.",
+                ),
+                models.CodeScanIssue(
+                    code_scan_id=code.id,
+                    file_path="server/index.ts",
+                    line_number=41,
+                    issue_type="wildcard_cors",
+                    severity="medium",
+                    description="CORS allows any origin on the membership API.",
+                ),
+                models.CodeScanIssue(
+                    code_scan_id=code.id,
+                    file_path="src/tickets.ts",
+                    line_number=77,
+                    issue_type="dangerous_eval",
+                    severity="high",
+                    description="eval() applied to a query parameter from the ticket scanner.",
+                ),
+            ])
 
         db.commit()
         print("Seeded demo clients:", ", ".join(DEMO_CLIENTS))

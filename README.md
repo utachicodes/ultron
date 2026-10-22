@@ -38,8 +38,12 @@ MVP backend (FastAPI + SQLAlchemy + SQLite) + frontend (Next.js) implementing:
   and insecure defaults in AI-generated or human-written code
 - **Senegal Cyber Law 2026 compliance**: maps findings to law articles, CERT notification
   windows, and sector-specific obligations (banking, telecom, government)
+- **Sports sector pack**: operational guidance for clubs, federations, and academies —
+  matchday and ticketing availability, athlete/minor safeguarding data, fan/payment data,
+  federation evidence, and AI in scouting/selection. Included in compliance summaries,
+  report recommendations, and the Markdown export
 - **Reports**: plain-language executive reports with recommendations, compliance mappings,
-  and Markdown export
+  sector guidance, and Markdown export
 - **No verification gate**: scans run on all non-excluded scopes immediately
 - **Findings + human review**: critical/high findings require named analyst attestation
 - **AI sovereignty layer**: prompt sanitization (client names, IPs, credentials, PII stripped),
@@ -70,10 +74,11 @@ The API will be at `http://localhost:8000`. Interactive docs at `http://localhos
 Default admin: `admin@ultorn.local` / `admin123` — change it from **Change password**
 in the console sidebar immediately after first sign-in.
 
-Optional demo data (two clients, findings, monitors, alerts, a code scan),
-plus three one-click demo personas (Admin, Analyst, and a Client scoped to
-just one of the demo clients) that appear as "Try as ___" buttons on the
-console login screen:
+Optional demo data (three clients — a bank, a telco, and the
+sports-sector Dakar United FC — with findings, monitors, alerts, and a code
+scan), plus four one-click demo personas (Admin, Analyst, a bank Client, and
+a club Client scoped to Dakar United FC) that appear as "Try as ___" buttons
+on the console login screen:
 
 ```bash
 cd backend

@@ -29,6 +29,12 @@ as items are picked up or completed. It's the source of truth for "what's left."
       disabled SSL verification, insecure defaults; `CodeScan` + `CodeScanIssue` models
 - [x] Senegal Cyber Law 2026 compliance mapping (`compliance.py`): findings → law articles,
       CERT notification windows, sector-specific obligations
+- [x] Sports sector pack (`compliance.py`, `reports.py`): matchday/ticketing availability,
+      athlete/minor safeguarding data, fan/payment data, federation evidence, and AI
+      scouting guidance in compliance summaries, report recommendations, and Markdown export
+- [x] Sports demo tenant (`seed_demo.py`): Dakar United FC with ticketing, academy, stadium,
+      membership, and fan-app findings; three monitors; alerts; a code scan; and a
+      club-scoped demo persona
 - [x] Report generation (`reports.py`): plain-language executive reports, recommendations,
       compliance mappings, Markdown export
 - [x] Recurring monitor scheduler (`scheduler.py`) wired to `worker.process_monitor_check`
@@ -114,10 +120,10 @@ as items are picked up or completed. It's the source of truth for "what's left."
 - [x] Self-service client registration flow: `/signup` page (register, then auto-login and
       redirect to `/console`); the landing page's hero "Get Started" CTA points there instead
       of straight to the login screen
-- [x] One-click demo accounts: `seed_demo.py` seeds an Admin, an Analyst, and a Client persona
-      (the Client owns one of the two demo clients, so role-based scoping has something real to
-      demonstrate). The console login screen shows a "Try as ___" button per persona that signs
-      in immediately with sample clients/findings already loaded
+- [x] One-click demo accounts: `seed_demo.py` seeds an Admin, an Analyst, a bank Client, and a
+      club Client persona (each Client owns a different demo client, so role-based scoping has
+      something real to demonstrate). The console login screen shows a "Try as ___" button per
+      persona that signs in immediately with sample clients/findings already loaded
 - [x] Self-service forgot-password flow: `POST /auth/forgot-password` issues a single-use,
       time-boxed token (`PasswordResetToken`, hashed at rest, previous tokens invalidated on
       re-request); `POST /auth/reset-password` redeems it. No SMTP provider is wired up yet, so

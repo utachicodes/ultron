@@ -8,7 +8,12 @@ Senegal cyber law obligations.
 
 import json
 from typing import List, Dict, Any
-from app.compliance import map_findings_to_compliance, get_compliance_summary
+from app.compliance import (
+    SECTOR_PACKS,
+    map_findings_to_compliance,
+    get_compliance_summary,
+    get_sector_pack,
+)
 
 
 def generate_report(
@@ -29,6 +34,7 @@ def generate_report(
     compliance_summary = get_compliance_summary(
         len(findings), len(critical), len(high), len(medium), client_sector
     )
+    sector_pack = get_sector_pack(client_sector)
 
     # Executive summary
     if critical:
@@ -84,14 +90,18 @@ def generate_report(
         },
         "compliance": compliance_summary,
         "compliance_mappings": compliance_mappings,
-        "recommendations": _generate_recommendations(findings),
+        "sector_pack": sector_pack,
+        "recommendations": _generate_recommendations(findings, client_sector),
         "generated_at": None,
     }
 
     return report
 
 
-def _generate_recommendations(findings: List[Dict[str, Any]]) -> List[str]:
+def _generate_recommendations(
+    findings: List[Dict[str, Any]],
+    client_sector: str | None = None,
+) -> List[str]:
     recommendations = []
 
     severities = [f.get("severity", "info") for f in findings]
@@ -105,6 +115,30 @@ def _generate_recommendations(findings: List[Dict[str, Any]]) -> List[str]:
         recommendations.append("Review HTTP service configurations and ensure headers follow security best practices.")
     if any("secret" in (f.get("title", "")).lower() or "key" in (f.get("title", "")).lower() for f in findings):
         recommendations.append("Rotate any exposed credentials and remove secrets from source code and configurations.")
+
+    if get_sector_pack(client_sector) is SECTOR_PACKS.get("sports"):
+        text = " ".join(
+            " ".join(
+                str(f.get(field, ""))
+                for field in ("title", "description", "target", "remediation")
+            )
+            for f in findings
+        ).lower()
+        if any(word in text for word in ("ticket", "payment", "mobile money", "pos")):
+            recommendations.append(
+                "Put ticketing, payment, and mobile-money endpoints under matchday monitoring and verify the manual fallback works."
+            )
+        if any(word in text for word in ("athlete", "academy", "medical", "roster", "guardian", "minor")):
+            recommendations.append(
+                "Treat athlete, guardian, and academy records as safeguarding data: restrict access, log exports, and review who can see them."
+            )
+        if any(word in text for word in ("stream", "broadcast", "result", "score", "match")):
+            recommendations.append(
+                "Add availability monitoring for streaming and results endpoints, with a named incident owner for matchday."
+            )
+        recommendations.append(
+            "File this report with the club-licensing, sponsor, or donor evidence pack; the immutable audit log is the supporting record."
+        )
 
     if not recommendations:
         recommendations.append("Maintain current security posture and continue regular monitoring.")
@@ -143,6 +177,22 @@ def report_to_markdown(report: Dict[str, Any]) -> str:
     for r in report["recommendations"]:
         lines.append(f"- {r}")
     lines.append("")
+
+    sector_pack = report.get("sector_pack")
+    if sector_pack:
+        lines.append(f"## Sector Guidance: {sector_pack['label']}")
+        lines.append(sector_pack["summary"])
+        lines.append("")
+        for focus in sector_pack.get("focus_areas", []):
+            lines.append(f"### {focus['area']}")
+            lines.append(f"*Why it matters:* {focus['why']}")
+            for check in focus.get("checks", []):
+                lines.append(f"- [ ] {check}")
+            lines.append("")
+        lines.append("### Sector next steps")
+        for step in sector_pack.get("next_steps", []):
+            lines.append(f"- {step}")
+        lines.append("")
 
     lines.append("## Compliance (Senegal Cyber Law 2026)")
     lines.append(f"- Framework: {report['compliance']['framework']}")

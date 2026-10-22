@@ -50,6 +50,12 @@ const DEMO_ACCOUNTS = [
     role: 'Client',
     blurb: "Sees only Sahel Bank's own scans and findings.",
   },
+  {
+    email: 'client-demo@dakarunitedfc.sn',
+    password: 'demo-club-123',
+    role: 'Club',
+    blurb: "Sees only Dakar United FC's scans and findings, with the sports sector pack.",
+  },
 ]
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -864,6 +870,7 @@ const SECTOR_LABELS: Record<string, string> = {
   banking: 'Banking / Mobile Money',
   telecom: 'Telecom',
   government: 'Government',
+  sports: 'Sports (club / federation / academy)',
   other: 'Other',
 }
 function sectorLabel(sector: string) {
@@ -1270,6 +1277,7 @@ function ClientsSection({ ctx }: { ctx: any }) {
                   <option value="banking">Banking / Mobile Money</option>
                   <option value="telecom">Telecom</option>
                   <option value="government">Government</option>
+                  <option value="sports">Sports (club / federation / academy)</option>
                   <option value="other">Other</option>
                 </Select>
               </Field>
@@ -1317,6 +1325,7 @@ function ClientsSection({ ctx }: { ctx: any }) {
                   <option value="banking">Banking / Mobile Money</option>
                   <option value="telecom">Telecom</option>
                   <option value="government">Government</option>
+                  <option value="sports">Sports (club / federation / academy)</option>
                   <option value="other">Other</option>
                 </Select>
               </Field>
@@ -3123,6 +3132,7 @@ function ComplianceSection({ ctx }: { ctx: any }) {
                   <option value="banking">Banking / Mobile Money</option>
                   <option value="telecom">Telecom</option>
                   <option value="government">Government</option>
+                  <option value="sports">Sports (club / federation / academy)</option>
                   <option value="other">Other</option>
                 </Select>
               </Field>
@@ -3152,6 +3162,17 @@ function ComplianceSection({ ctx }: { ctx: any }) {
               <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
                 {summary.next_steps.map((s: string) => <li key={s}>{s}</li>)}
               </ul>
+              {summary.sector_pack && (
+                <div style={{ marginTop: '1rem' }}>
+                  <div style={styles.detailLabelLight}>Sector Guidance: {summary.sector_pack.label}</div>
+                  <p style={{ ...styles.mutedText, marginTop: '0.35rem' }}>{summary.sector_pack.summary}</p>
+                  <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', color: TEXT_DIM }}>
+                    {summary.sector_pack.focus_areas.map((f: any) => (
+                      <li key={f.area}><strong>{f.area}</strong> — {f.why}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3174,12 +3195,18 @@ function ComplianceSection({ ctx }: { ctx: any }) {
           )}
           {mappings.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
-              {mappings.map((m: any) => (
-                <div key={m.law_article} style={styles.auditRowLight}>
+              {mappings.map((m: any, i: number) => (
+                <div key={`${m.law_article}-${m.finding_id ?? m.finding_title ?? i}`} style={styles.auditRowLight}>
                   <div style={{ flex: 1 }}>
                     <strong>{m.law_article}</strong>
                     <br />
                     <span style={styles.mutedText}>{m.obligation}</span>
+                    {m.sector_action && (
+                      <>
+                        <br />
+                        <span style={styles.mutedText}><strong>Sector action:</strong> {m.sector_action}</span>
+                      </>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <Badge tone={m.priority === 'immediate' ? 'danger' : m.priority === 'urgent' ? 'warning' : 'neutral'}>{m.priority}</Badge>
