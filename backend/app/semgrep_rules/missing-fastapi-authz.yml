@@ -1,0 +1,39 @@
+rules:
+  - id: fastapi-route-missing-authz-dependency
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This FastAPI route handler has no Depends(...) parameter. If this
+      route should require an authenticated or authorized caller, add a
+      Depends(get_current_user) (or equivalent) parameter; if it's
+      intentionally public, no action is needed.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      remediation: "Add a Depends(get_current_user)/require_role(...) parameter, or confirm the route is intentionally public."
+    patterns:
+      - pattern-either:
+          - pattern: |
+              @$ROUTER.get(...)
+              def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.post(...)
+              def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.put(...)
+              def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.patch(...)
+              def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.delete(...)
+              def $FUNC(...):
+                  ...
+      - pattern-not: |
+          @$ROUTER.$METHOD(...)
+          def $FUNC(..., $PARAM = Depends(...), ...):
+              ...

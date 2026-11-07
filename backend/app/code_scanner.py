@@ -50,9 +50,94 @@ LOGIC_FLAW_PATTERNS = [
     (re.compile(r'(?i)#\s*TODO.*security|#\s*FIXME.*security|#\s*HACK.*security'), "security_todo_comment"),
 ]
 
+# Missing-authorization-check detection. This is a heuristic signal, not a
+# proof (unlike authz_hunter's role-replay findings): it flags a route
+# definition that has no visible auth check within a short window of its
+# own definition, which is a reasonable first-pass signal but not
+# conclusive -- the check could live in shared middleware the window
+# doesn't see. Severity is "medium" for exactly that reason; a human should
+# confirm before treating it as a real gap.
+#
+# Framework coverage is deliberately broad rather than deep: FastAPI/Flask-
+# style route decorators (Python), Express-style route calls (JS/TS), and
+# Spring MVC mapping annotations (Java) cover the stacks Ultron's own code
+# scanner and PR reviewer already see in practice.
+ROUTE_DEFINITION_PATTERNS = [
+    re.compile(r'^\s*@(?:\w+\.)?(?:get|post|put|patch|delete)\s*\('),  # FastAPI/Flask decorators
+    re.compile(r'^\s*(?:app|router)\.(?:get|post|put|patch|delete)\s*\('),  # Express-style
+    re.compile(r'^\s*@(?:Get|Post|Put|Patch|Delete|Request)Mapping\s*\('),  # Spring MVC
+]
 
-def _scan_file_content(content: str, file_path: str) -> List[Dict[str, Any]]:
-    """Scan a single file's content for AI-code failure patterns."""
+AUTH_CHECK_KEYWORDS_PATTERN = re.compile(
+    r'(?i)depends\(\s*(get_current_user|require_role|auth)|'
+    r'login_required|is_authenticated|requires_auth|'
+    r'permission_classes|preauthorize|current_user\s*:|'
+    r'authorization|authenticate|jwt_required|@auth\.|'
+    r'auth'  # catches requireAuth, authMiddleware, AuthGuard, etc. (substring, case-insensitive)
+)
+
+# How many lines after a route definition to look for an auth check before
+# concluding there isn't one nearby -- covers the decorator line itself,
+# the function signature (where a FastAPI `Depends(...)` parameter lives),
+# and the first few lines of the handler body. Also looks a few lines
+# *before* the route definition, since a stacked security annotation
+# (e.g. Spring's @PreAuthorize above @GetMapping) commonly precedes it.
+_AUTHZ_LOOKAHEAD_LINES = 12
+_AUTHZ_LOOKBEHIND_LINES = 3
+
+
+def _detect_missing_authz_checks(lines: List[str]) -> List[Dict[str, Any]]:
+    issues: List[Dict[str, Any]] = []
+
+    route_indices = [
+        i for i, line in enumerate(lines) if any(p.match(line) for p in ROUTE_DEFINITION_PATTERNS)
+    ]
+
+    for idx, i in enumerate(route_indices):
+        # Clip the window at the previous/next route definition so an
+        # adjacent route's own auth check (or lack of one) never leaks into
+        # this route's result -- routes sitting a few lines apart in the
+        # same file are common and must be judged independently.
+        prev_route_end = route_indices[idx - 1] + 1 if idx > 0 else 0
+        next_route_start = route_indices[idx + 1] if idx + 1 < len(route_indices) else len(lines)
+
+        backward_start = max(i - _AUTHZ_LOOKBEHIND_LINES, prev_route_end)
+        forward_end = min(i + _AUTHZ_LOOKAHEAD_LINES, next_route_start)
+
+        window = lines[backward_start:forward_end]
+        if AUTH_CHECK_KEYWORDS_PATTERN.search("\n".join(window)):
+            continue
+
+        issues.append(
+            {
+                "line_number": i + 1,
+                "issue_type": "missing_authz_check",
+                "severity": "medium",
+                "description": (
+                    f"Route definition on line {i + 1} has no visible authorization/"
+                    "authentication check within its own definition -- may allow "
+                    "unauthenticated or unauthorized access if one isn't enforced "
+                    "elsewhere (e.g. shared middleware)."
+                ),
+                "remediation": _get_remediation("missing_authz_check"),
+                "code_snippet": lines[i].strip(),
+            }
+        )
+
+    return issues
+
+
+def _scan_file_content(
+    content: str, file_path: str, skip_missing_authz_heuristic: bool = False
+) -> List[Dict[str, Any]]:
+    """Scan a single file's content for AI-code failure patterns.
+
+    `skip_missing_authz_heuristic` is set by `scan_directory` for Python
+    files when `semgrep_scanner` is available: its AST-aware
+    `fastapi-route-missing-authz-dependency` rule supersedes the line-window
+    heuristic here for that language, and running both would just double-
+    report the same route.
+    """
     issues: List[Dict[str, Any]] = []
     lines = content.splitlines()
 
@@ -75,6 +160,10 @@ def _scan_file_content(content: str, file_path: str) -> List[Dict[str, Any]]:
                     "code_snippet": line.strip(),
                 })
                 break  # One issue per line per pattern type
+
+    if not skip_missing_authz_heuristic:
+        for issue in _detect_missing_authz_checks(lines):
+            issues.append({**issue, "file_path": file_path})
 
     return issues
 
@@ -102,27 +191,55 @@ def _get_remediation(issue_type: str) -> str:
         "always_true_condition": "Review and fix always-true conditional logic.",
         "silent_exception_swallowing": "Log exceptions instead of silently swallowing them.",
         "security_todo_comment": "Address the security TODO/FIXME comment before shipping.",
+        "missing_authz_check": "Add an explicit authorization check (e.g. Depends(get_current_user)/@login_required/a permission check) to this route, or confirm it is intentionally public.",
     }
     return remediations.get(issue_type, "Review and remediate this issue.")
 
 
 def scan_directory(directory_path: str) -> List[Dict[str, Any]]:
-    """Recursively scan a directory for AI-code failure patterns."""
+    """Recursively scan a directory for AI-code failure patterns.
+
+    Also runs `semgrep_scanner`'s bundled, AST-aware custom rules when
+    semgrep is installed, merging its findings in alongside the regex ones
+    (and skipping the regex missing-authz heuristic for Python files, since
+    semgrep's version of that check is more precise for that language).
+    Falls back to regex-only detection when semgrep isn't available --
+    never fails the scan over a missing optional dependency.
+    """
+    from app import semgrep_scanner
+
     all_issues: List[Dict[str, Any]] = []
     root = Path(directory_path)
 
     if not root.exists():
         return [{"error": f"Directory not found: {directory_path}"}]
 
+    semgrep_ready = semgrep_scanner.is_available()
+
     for file_path in root.rglob("*"):
         if file_path.is_file() and file_path.suffix in {".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".java", ".rb", ".php"}:
             try:
                 content = file_path.read_text(encoding="utf-8", errors="replace")
                 relative_path = str(file_path.relative_to(root))
-                issues = _scan_file_content(content, relative_path)
+                issues = _scan_file_content(
+                    content,
+                    relative_path,
+                    skip_missing_authz_heuristic=semgrep_ready and file_path.suffix == ".py",
+                )
                 all_issues.extend(issues)
             except Exception:
                 continue
+
+    if semgrep_ready:
+        semgrep_issues = semgrep_scanner.scan_directory(directory_path)
+        for issue in semgrep_issues:
+            if "error" in issue:
+                continue
+            try:
+                issue["file_path"] = str(Path(issue["file_path"]).resolve().relative_to(root.resolve()))
+            except (ValueError, TypeError, KeyError):
+                pass  # keep whatever path semgrep gave us rather than drop the finding
+            all_issues.append(issue)
 
     return all_issues
 

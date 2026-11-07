@@ -1,0 +1,14 @@
+rules:
+  - id: sql-injection-fstring-execute
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL query built with an f-string passed directly to a database
+      cursor's execute() -- this interpolates values straight into the
+      query string, which is a SQL injection risk. Use a parameterized
+      query instead.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      remediation: 'Use a parameterized query (e.g. cursor.execute("...WHERE id = %s", (user_id,))) instead of an f-string.'
+    pattern: $CURSOR.execute(f"...")
