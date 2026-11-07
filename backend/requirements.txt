@@ -17,3 +17,8 @@ schedule==1.2.0
 bcrypt==4.1.2
 email-validator==2.3.0
 psycopg2-binary==2.9.9
+
+# Optional: feature-gated (is_available() checks) so the app runs fine
+# without it, falling back to spec-based discovery.
+# playwright additionally needs `playwright install chromium` after pip install.
+playwright==1.60.0

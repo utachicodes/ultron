@@ -391,3 +391,98 @@ class CodeScanIssueOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Authz Hunts (autonomous IDOR/BOLA proof-of-exploit) ---
+class AuthzRoleIn(BaseModel):
+    """A named, authenticated identity to replay requests as (e.g. two
+    different customer accounts, or a guest with no credentials)."""
+    name: str
+    headers: Dict[str, str] = {}
+
+
+class AuthzProbeIn(BaseModel):
+    """One request shape to replay across roles. `path` must contain a
+    `{<id_param>}` placeholder, e.g. path="/api/invoices/{id}",
+    id_param="id". `owner_value` is a real object id known to belong to
+    `owner_role` (e.g. an invoice id for that logged-in customer)."""
+    method: str = "GET"
+    path: str
+    id_param: str
+    owner_role: str
+    owner_value: str
+    description: Optional[str] = None
+
+
+class AuthzHuntCreate(BaseModel):
+    client_id: int
+    base_url: str
+    roles: List[AuthzRoleIn]
+    probes: List[AuthzProbeIn]
+
+
+class BrowserLoginConfig(BaseModel):
+    """A login form to drive before crawling, for apps with session-cookie
+    auth rather than a bearer token."""
+    url: str
+    username_selector: str
+    username: str
+    password_selector: str
+    password: str
+    submit_selector: str
+
+
+class BrowserCrawlRoleConfig(BaseModel):
+    role_name: str
+    start_url: str
+    login: Optional[BrowserLoginConfig] = None
+
+
+class BrowserCrawlRequest(BaseModel):
+    base_url: str
+    roles: List[BrowserCrawlRoleConfig]
+    max_pages: int = 15
+
+
+class AuthzFindingOut(BaseModel):
+    id: int
+    hunt_id: int
+    method: str
+    path: str
+    owner_role: str
+    tested_role: str
+    verdict: str
+    confidence: float
+    severity: str
+    reason: Optional[str] = None
+    narrative: Optional[str] = None
+    evidence: Optional[Dict[str, Any]] = None
+    reviewed_by_id: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @field_validator("evidence", mode="before")
+    @classmethod
+    def _decode_evidence(cls, value):
+        return _parse_json_field(value)
+
+
+class AuthzHuntOut(BaseModel):
+    id: int
+    client_id: int
+    base_url: str
+    status: str
+    probes_run: int
+    confirmed_leaks: int
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    findings: List[AuthzFindingOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+# --- PR Reviews (whitebox risk-ranked GitHub PR review) ---

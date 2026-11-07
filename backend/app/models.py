@@ -264,5 +264,58 @@ class CodeScanIssue(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-# Add relationships to Client
-Client.monitors = relationship("Monitor", back_populates="client")
+class AuthzHunt(Base):
+    """A blackbox authorization-proof run: replays requests across named
+    roles against a client's declared base_url to prove or rule out broken
+    object-level authorization (IDOR/BOLA)."""
+
+    __tablename__ = "authz_hunts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    base_url = Column(String(500), nullable=False)
+    status = Column(String(50), default="pending")
+    probes_run = Column(Integer, default=0)
+    confirmed_leaks = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    client = relationship("Client")
+    requested_by_user = relationship("User")
+    findings = relationship(
+        "AuthzFinding", back_populates="hunt", cascade="all, delete-orphan"
+    )
+
+
+class AuthzFinding(Base):
+    """One role-pair replay result: a proof attempt, not just a suspicion.
+
+    `verdict` is one of confirmed_leak, no_leak, inconclusive, probe_error.
+    A confirmed_leak still requires named human analyst review (reviewed_*)
+    before being reported to a client, matching the gate already enforced
+    on `Finding`.
+    """
+
+    __tablename__ = "authz_findings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    hunt_id = Column(Integer, ForeignKey("authz_hunts.id"), nullable=False)
+    method = Column(String(10), nullable=False)
+    path = Column(String(500), nullable=False)
+    owner_role = Column(String(100), nullable=False)
+    tested_role = Column(String(100), nullable=False)
+    verdict = Column(String(30), nullable=False)
+    confidence = Column(Float, default=0.0)
+    severity = Column(String(20), default="info")
+    reason = Column(Text)
+    narrative = Column(Text)
+    evidence = Column(Text)  # JSON: sanitized baseline + attempt request/response
+    reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    hunt = relationship("AuthzHunt", back_populates="findings")
+    reviewed_by_user = relationship("User")
+
+
