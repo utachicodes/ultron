@@ -370,6 +370,80 @@ class PRReviewFinding(Base):
     review = relationship("PRReview", back_populates="findings")
 
 
+class Campaign(Base):
+    """A commander-orchestrated run: a goal decomposed into tasks across
+    Ultron's own proof engines (authorization hunts, PR reviews -- more as
+    they're added), run and consolidated into a shared fact log.
+
+    Architecturally inspired by sapper-v2's commander/worker role division
+    (https://github.com/N1nEmAn/sapper-v2), reimplemented natively: no
+    tmux/shell-spawning, no third-party code, and no capability beyond what
+    `authz_hunter` and `pr_review` already do -- a campaign only ever
+    dispatches Ultron's own engines, which keep their existing scope limits
+    and human-review gates.
+    """
+
+    __tablename__ = "campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    goal = Column(Text, nullable=False)
+    status = Column(String(50), default="pending")
+    tasks_total = Column(Integer, default=0)
+    tasks_completed = Column(Integer, default=0)
+    summary = Column(Text)  # AI-authored consolidated narrative
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    client = relationship("Client")
+    requested_by_user = relationship("User")
+    tasks = relationship("CampaignTask", back_populates="campaign", cascade="all, delete-orphan")
+    facts = relationship("CampaignFact", back_populates="campaign", cascade="all, delete-orphan")
+
+
+class CampaignTask(Base):
+    """One dispatched unit of work within a campaign. `role` is a
+    descriptive label only (scout/soldier/general, echoing sapper-v2's
+    division of labor by workload size) -- it does not spawn a separate
+    agent or process, it just names which existing engine ran and how much
+    work it was given."""
+
+    __tablename__ = "campaign_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
+    task_type = Column(String(30), nullable=False)  # authz_hunt, pr_review
+    role = Column(String(20), default="soldier")  # scout, soldier, general
+    status = Column(String(50), default="pending")
+    target_summary = Column(String(500))
+    result_ref_id = Column(Integer)  # AuthzHunt.id or PRReview.id, depending on task_type
+    result_summary = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    campaign = relationship("Campaign", back_populates="tasks")
+
+
+class CampaignFact(Base):
+    """A layered fact in the campaign's shared log: title for the gist,
+    summary to drill into, evidence for the full detail -- echoing
+    sapper-v2's three-layer fact-intent graph (title/summary/evidence), kept
+    here as a plain table rather than a separate graph store."""
+
+    __tablename__ = "campaign_facts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
+    title = Column(String(500), nullable=False)
+    summary = Column(Text)
+    evidence = Column(Text)  # JSON pointer, e.g. {"type": "authz_finding", "id": 42}
+    severity = Column(String(20), default="info")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    campaign = relationship("Campaign", back_populates="facts")
+
+
 class JailbreakPattern(Base):
     """A learned defense pattern: a confirmed prompt-injection/jailbreak
     bypass from an `AIRedTeamRun`, turned into a detector `ai_router`

@@ -535,6 +535,60 @@ class PRReviewOut(BaseModel):
 
 
 # --- Campaigns (commander-orchestrated multi-task runs) ---
+class CampaignAuthzHuntConfig(BaseModel):
+    base_url: str
+    roles: List[AuthzRoleIn]
+    probes: List[AuthzProbeIn]
+
+
+class CampaignPRReviewConfig(BaseModel):
+    repo: str
+    pr_number: int
+    github_token: str
+    post_comment: bool = False
+
+
+class CampaignCreate(BaseModel):
+    client_id: int
+    goal: str
+    authz_hunts: List[CampaignAuthzHuntConfig] = []
+    pr_reviews: List[CampaignPRReviewConfig] = []
+
+
+class CampaignTaskOut(BaseModel):
+    id: int
+    campaign_id: int
+    task_type: str
+    role: str
+    status: str
+    target_summary: Optional[str] = None
+    result_ref_id: Optional[int] = None
+    result_summary: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignFactOut(BaseModel):
+    id: int
+    campaign_id: int
+    title: str
+    summary: Optional[str] = None
+    severity: str
+    evidence: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @field_validator("evidence", mode="before")
+    @classmethod
+    def _decode_evidence(cls, value):
+        return _parse_json_field(value)
+
+
 class AIRedTeamResultOut(BaseModel):
     id: int
     run_id: int
@@ -593,3 +647,18 @@ class JailbreakPatternOut(BaseModel):
         from_attributes = True
 
 
+class CampaignOut(BaseModel):
+    id: int
+    client_id: int
+    goal: str
+    status: str
+    tasks_total: int
+    tasks_completed: int
+    summary: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    tasks: List[CampaignTaskOut] = []
+    facts: List[CampaignFactOut] = []
+
+    class Config:
+        from_attributes = True
