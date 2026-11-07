@@ -21,6 +21,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: pip install -r requirements-dev.txt
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('backend/requirements.txt') }}
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
       - run: python -c "from app.main import app; print('backend imports OK')"
       - name: Run backend tests
         run: python -m pytest tests
