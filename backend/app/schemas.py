@@ -302,6 +302,8 @@ class AIQueryOut(BaseModel):
     provider: str
     model: str
     prompt_sanitized: bool
+    jailbreak_detected: bool = False
+    jailbreak_category: Optional[str] = None
     tokens_in: Optional[int]
     tokens_out: Optional[int]
     created_at: datetime
@@ -486,3 +488,61 @@ class AuthzHuntOut(BaseModel):
 
 
 # --- PR Reviews (whitebox risk-ranked GitHub PR review) ---
+class AIRedTeamResultOut(BaseModel):
+    id: int
+    run_id: int
+    payload_id: Optional[str] = None
+    category: Optional[str] = None
+    verdict: str
+    prompt_preview: Optional[str] = None
+    response_preview: Optional[str] = None
+    pattern_learned: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AIRedTeamExternalConfig(BaseModel):
+    url: str
+    headers: Dict[str, str] = {}
+    prompt_field: str = "prompt"
+    response_field: str = "response"
+
+
+class AIRedTeamRunCreate(BaseModel):
+    client_id: int
+    mode: str = Field(default="internal", description="'internal' (Ultron's own AI Guard) or 'external'")
+    external: Optional[AIRedTeamExternalConfig] = None
+    force_local: bool = False
+
+
+class AIRedTeamRunOut(BaseModel):
+    id: int
+    client_id: int
+    mode: str
+    target_summary: Optional[str] = None
+    status: str
+    payloads_run: int
+    bypassed_count: int
+    patterns_learned: int
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    results: List[AIRedTeamResultOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+class JailbreakPatternOut(BaseModel):
+    id: int
+    category: str
+    pattern: str
+    learned_from_run_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+

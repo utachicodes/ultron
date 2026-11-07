@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import AIQueryLog, User, Client
 from app.sanitizer import sanitize_text
+from app.jailbreak_guard import is_jailbreak_attempt
 
 
 def _hash_text(text: str) -> str:
@@ -37,7 +38,14 @@ def route_ai_query(
         prompt_sanitized = stats.get("credentials", 0) > 0 or stats.get("ip_addresses", 0) > 0
         prompt_hash = _hash_text(sanitized_prompt)
 
-        sensitive = not _is_sanitized(sanitized_prompt) or force_local
+        # Prompt-injection/jailbreak check: sanitize_text only strips PII and
+        # credentials, it was never meant to catch "ignore previous
+        # instructions"-style attacks. A detected attempt is forced local the
+        # same way a sensitive prompt is -- never sent to an external
+        # provider -- and logged so `app.ai_redteam` can show it as blocked.
+        jailbreak_detected, jailbreak_category = is_jailbreak_attempt(prompt, db)
+
+        sensitive = not _is_sanitized(sanitized_prompt) or force_local or jailbreak_detected
 
         if sensitive or settings.ai_provider == "local":
             response = _local_process(sanitized_prompt)
@@ -67,6 +75,8 @@ def route_ai_query(
             provider=provider,
             model=model,
             prompt_sanitized=prompt_sanitized,
+            jailbreak_detected=jailbreak_detected,
+            jailbreak_category=jailbreak_category,
             prompt_hash=prompt_hash,
             response_hash=response_hash,
             tokens_in=len(sanitized_prompt.split()),
@@ -80,6 +90,8 @@ def route_ai_query(
             "provider": provider,
             "model": model,
             "prompt_sanitized": prompt_sanitized,
+            "jailbreak_detected": jailbreak_detected,
+            "jailbreak_category": jailbreak_category,
             "query_id": log_entry.id,
         }
     finally:

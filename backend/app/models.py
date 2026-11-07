@@ -153,6 +153,8 @@ class AIQueryLog(Base):
     provider = Column(String(50), nullable=False)
     model = Column(String(100))
     prompt_sanitized = Column(Boolean, default=False)
+    jailbreak_detected = Column(Boolean, default=False)
+    jailbreak_category = Column(String(50), nullable=True)
     prompt_hash = Column(String(255))
     response_hash = Column(String(255))
     tokens_in = Column(Integer)
@@ -319,3 +321,64 @@ class AuthzFinding(Base):
     reviewed_by_user = relationship("User")
 
 
+class JailbreakPattern(Base):
+    """A learned defense pattern: a confirmed prompt-injection/jailbreak
+    bypass from an `AIRedTeamRun`, turned into a detector `ai_router`
+    consults before routing a prompt to an external provider. One active
+    row per category -- see `app.jailbreak_guard.add_pattern_from_bypass`.
+    """
+
+    __tablename__ = "jailbreak_patterns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(50), nullable=False, index=True)
+    pattern = Column(Text, nullable=False)  # a regex, checked against prompts
+    learned_from_run_id = Column(Integer, ForeignKey("ai_redteam_runs.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AIRedTeamRun(Base):
+    """One AI Guard red-team run: fires known prompt-injection/jailbreak
+    payloads at a declared target (Ultron's own AI Guard, or a client's own
+    AI-powered feature) and records which ones got through."""
+
+    __tablename__ = "ai_redteam_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    mode = Column(String(20), nullable=False)  # internal, external
+    target_summary = Column(String(500))
+    status = Column(String(50), default="pending")
+    payloads_run = Column(Integer, default=0)
+    bypassed_count = Column(Integer, default=0)
+    patterns_learned = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    client = relationship("Client")
+    requested_by_user = relationship("User")
+    results = relationship(
+        "AIRedTeamResult", back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class AIRedTeamResult(Base):
+    __tablename__ = "ai_redteam_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(Integer, ForeignKey("ai_redteam_runs.id"), nullable=False)
+    payload_id = Column(String(50))
+    category = Column(String(50))
+    verdict = Column(String(20))  # bypassed, blocked, error
+    prompt_preview = Column(Text)
+    response_preview = Column(Text)
+    pattern_learned = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    run = relationship("AIRedTeamRun", back_populates="results")
+
+
+# Add relationships to Client
+Client.monitors = relationship("Monitor", back_populates="client")

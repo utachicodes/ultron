@@ -16,6 +16,7 @@ from app import models, auth, scheduler
 from app.routers import (
     admin as admin_router,
     ai as ai_router,
+    ai_redteam as ai_redteam_router,
     audit as audit_router,
     auth as auth_router,
     authz as authz_router,
@@ -85,6 +86,7 @@ def seed_admin():
 for _router in (
     admin_router.router,
     ai_router.router,
+    ai_redteam_router.router,
     audit_router.router,
     auth_router.router,
     authz_router.router,
