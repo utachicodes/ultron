@@ -321,6 +321,55 @@ class AuthzFinding(Base):
     reviewed_by_user = relationship("User")
 
 
+class PRReview(Base):
+    """A whitebox pull-request review run (GitHub, Bitbucket, or Forgejo):
+    fetches the PR's diff, flags risky patterns in its added lines, and
+    ranks them by severity. The access token used to fetch (and optionally
+    comment on) the PR is never persisted -- only the repo/PR identity and
+    the resulting findings are stored.
+    """
+
+    __tablename__ = "pr_reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    repo = Column(String(255), nullable=False)  # "owner/name"
+    pr_number = Column(Integer, nullable=False)
+    provider = Column(String(20), default="github")  # github, bitbucket, forgejo
+    pr_title = Column(String(500))
+    pr_url = Column(String(500))
+    status = Column(String(50), default="pending")
+    files_changed = Column(Integer, default=0)
+    findings_count = Column(Integer, default=0)
+    comment_posted = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    client = relationship("Client")
+    requested_by_user = relationship("User")
+    findings = relationship(
+        "PRReviewFinding", back_populates="review", cascade="all, delete-orphan"
+    )
+
+
+class PRReviewFinding(Base):
+    __tablename__ = "pr_review_findings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    review_id = Column(Integer, ForeignKey("pr_reviews.id"), nullable=False)
+    file_path = Column(String(500))
+    line_number = Column(Integer)
+    issue_type = Column(String(100))
+    severity = Column(String(20))
+    summary = Column(Text)
+    suggested_fix = Column(Text)
+    code_snippet = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    review = relationship("PRReview", back_populates="findings")
+
+
 class JailbreakPattern(Base):
     """A learned defense pattern: a confirmed prompt-injection/jailbreak
     bypass from an `AIRedTeamRun`, turned into a detector `ai_router`

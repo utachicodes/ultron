@@ -488,6 +488,53 @@ class AuthzHuntOut(BaseModel):
 
 
 # --- PR Reviews (whitebox risk-ranked GitHub PR review) ---
+class PRReviewCreate(BaseModel):
+    client_id: int
+    repo: str = Field(description="owner/name, e.g. utachicodes/ultron")
+    pr_number: int
+    github_token: str = Field(description="Access token for the chosen provider. Used once to fetch (and optionally comment on) the PR; never stored.")
+    post_comment: bool = False
+    provider: str = Field(default="github", description="'github', 'bitbucket', or 'forgejo'")
+    host: Optional[str] = Field(default=None, description="Required for provider='forgejo' (self-hosted), e.g. https://forgejo.example.sn")
+
+
+class PRReviewFindingOut(BaseModel):
+    id: int
+    review_id: int
+    file_path: Optional[str]
+    line_number: Optional[int]
+    issue_type: Optional[str]
+    severity: Optional[str]
+    summary: Optional[str]
+    suggested_fix: Optional[str]
+    code_snippet: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PRReviewOut(BaseModel):
+    id: int
+    client_id: int
+    repo: str
+    pr_number: int
+    provider: str = "github"
+    pr_title: Optional[str] = None
+    pr_url: Optional[str] = None
+    status: str
+    files_changed: int
+    findings_count: int
+    comment_posted: bool
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    findings: List[PRReviewFindingOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+# --- Campaigns (commander-orchestrated multi-task runs) ---
 class AIRedTeamResultOut(BaseModel):
     id: int
     run_id: int
