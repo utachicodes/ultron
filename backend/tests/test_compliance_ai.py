@@ -21,6 +21,47 @@ def test_compliance_summary_banking(client):
     assert body["next_steps"]
 
 
+def test_soc2_readiness_endpoint(client):
+    res = client.post(
+        "/compliance/soc2",
+        json={
+            "findings": [{"id": 1, "title": "Hardcoded API key in repo", "severity": "critical"}],
+            "authz_findings": [
+                {"id": 2, "method": "GET", "path": "/invoices/{id}", "verdict": "confirmed_leak"}
+            ],
+            "report_type": "type2",
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["gap_count"] >= 1
+    assert body["critical_gap_count"] >= 1
+    assert body["readiness_percent"] < 100
+    logical_access = next(c for c in body["controls"] if c["control"] == "logical_access")
+    assert logical_access["status"] == "gap"
+    assert len(logical_access["open_items"]) == 2
+
+
+def test_iso27001_readiness_endpoint(client):
+    res = client.post(
+        "/compliance/iso27001",
+        json={
+            "findings": [{"id": 1, "title": "Hardcoded API key in repo", "severity": "critical"}],
+            "authz_findings": [
+                {"id": 2, "method": "GET", "path": "/accounts/{id}", "verdict": "confirmed_leak"}
+            ],
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["gap_count"] >= 1
+    assert body["critical_gap_count"] >= 1
+    assert body["not_assessed_count"] == 3
+    access_control = next(c for c in body["controls"] if c["control"] == "access_control")
+    assert access_control["status"] == "gap"
+    assert len(access_control["open_items"]) == 2
+
+
 def test_compliance_map(client):
     res = client.post(
         "/compliance/map",
