@@ -136,6 +136,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="3" />
     </svg>
   ),
+  authz: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3 4 6.5v5.2c0 5 3.4 8.9 8 10.3 4.6-1.4 8-5.3 8-10.3V6.5L12 3Z" />
+      <path d="M9.5 12.2l1.8 1.8 3.3-3.6" />
+    </svg>
+  ),
   reports: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M16 13h-4M16 17h-4" />
@@ -640,6 +646,10 @@ function Page() {
   const [monitors, setMonitors] = useState<any[]>([])
   const [alerts, setAlerts] = useState<any[]>([])
   const [codeScans, setCodeScans] = useState<any[]>([])
+  const [authzHunts, setAuthzHunts] = useState<any[]>([])
+  const [prReviews, setPrReviews] = useState<any[]>([])
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [redteamRuns, setRedteamRuns] = useState<any[]>([])
   const [message, setMessage] = useState<{ text: string; type: ToastTone } | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -665,6 +675,10 @@ function Page() {
     setMonitors([])
     setAlerts([])
     setCodeScans([])
+    setAuthzHunts([])
+    setPrReviews([])
+    setCampaigns([])
+    setRedteamRuns([])
     setView('dashboard')
     setMobileOpen(false)
   }
@@ -860,6 +874,10 @@ function Page() {
       label: 'Analysis',
       items: [
         { key: 'code-scans', label: 'Code Scans', icon: 'code' },
+        { key: 'authz', label: 'Authorization Hunts', icon: 'authz' },
+        { key: 'pr-reviews', label: 'PR Reviews', icon: 'code' },
+        { key: 'campaigns', label: 'Campaigns', icon: 'schedules' },
+        { key: 'ai-redteam', label: 'AI Red-Team', icon: 'ai' },
         { key: 'compliance', label: 'Compliance', icon: 'compliance' },
         { key: 'reports', label: 'Reports', icon: 'reports' },
         { key: 'ai', label: 'AI Guard', icon: 'ai' },
@@ -916,6 +934,10 @@ function Page() {
     monitors, setMonitors,
     alerts, setAlerts,
     codeScans, setCodeScans,
+    authzHunts, setAuthzHunts,
+    prReviews, setPrReviews,
+    campaigns, setCampaigns,
+    redteamRuns, setRedteamRuns,
     setView,
   }
 
@@ -1093,6 +1115,10 @@ function Page() {
           {view === 'alerts' && <AlertsSection ctx={ctx} />}
           {view === 'schedules' && <SchedulesSection ctx={ctx} />}
           {view === 'code-scans' && <CodeScansSection ctx={ctx} />}
+          {view === 'authz' && <AuthzSection ctx={ctx} />}
+          {view === 'pr-reviews' && <PRReviewsSection ctx={ctx} />}
+          {view === 'campaigns' && <CampaignsSection ctx={ctx} />}
+          {view === 'ai-redteam' && <AIRedTeamSection ctx={ctx} />}
           {view === 'compliance' && <ComplianceSection ctx={ctx} />}
           {view === 'reports' && <ReportsSection ctx={ctx} />}
         </main>
@@ -3609,6 +3635,1228 @@ function CodeScansSection({ ctx }: { ctx: any }) {
 }
 
 // ============================================================
+// AUTHORIZATION HUNTS (autonomous IDOR/BOLA proof-of-exploit)
+// ============================================================
+function verdictTone(v: string) {
+  switch (v) {
+    case 'confirmed_leak': return 'danger'
+    case 'inconclusive': return 'warning'
+    case 'no_leak': return 'success'
+    default: return 'neutral'
+  }
+}
+
+function verdictLabel(v: string) {
+  switch (v) {
+    case 'confirmed_leak': return 'Confirmed leak'
+    case 'no_leak': return 'No leak'
+    case 'inconclusive': return 'Inconclusive'
+    case 'probe_error': return 'Probe error'
+    default: return v
+  }
+}
+
+const HEADER_NAME_OPTIONS = ['Authorization', 'Cookie', 'X-API-Key', 'X-Auth-Token']
+
+function emptyRole() {
+  return { name: '', header_name: 'Authorization', header_value: '' }
+}
+
+function emptyProbe() {
+  return { method: 'GET', path: '', id_param: 'id', owner_role: '', owner_value: '', description: '' }
+}
+
+function emptyCrawlRole() {
+  return {
+    role_name: '',
+    start_url: '',
+    login_url: '',
+    username_selector: '#username',
+    username: '',
+    password_selector: '#password',
+    password: '',
+    submit_selector: 'button[type=submit]',
+  }
+}
+
+function AuthzSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, authzHunts, setAuthzHunts, canManage } = ctx
+  const [clientsForAuthz, setClientsForAuthz] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [specUrl, setSpecUrl] = useState('')
+  const [showCrawl, setShowCrawl] = useState(false)
+  const [crawling, setCrawling] = useState(false)
+  const [crawlRoles, setCrawlRoles] = useState([emptyCrawlRole(), emptyCrawlRole()])
+  const [newHunt, setNewHunt] = useState({ client_id: '' as any, base_url: '' })
+  const [roles, setRoles] = useState([emptyRole(), emptyRole()])
+  const [probes, setProbes] = useState([emptyProbe()])
+  const [selectedHuntId, setSelectedHuntId] = useState<any>(null)
+  const [huntFindings, setHuntFindings] = useState<any[]>([])
+  const [findingsLoading, setFindingsLoading] = useState(false)
+  const [expandedEvidence, setExpandedEvidence] = useState<Record<number, boolean>>({})
+
+  const load = async () => {
+    try {
+      const [huntsData, clientsData] = await Promise.all([api('/authz-hunts'), api('/clients')])
+      setAuthzHunts(Array.isArray(huntsData) ? huntsData : [])
+      setClientsForAuthz(Array.isArray(clientsData) ? clientsData : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load authorization hunts', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [token])
+
+  const openFindings = async (hunt: any) => {
+    setSelectedHuntId(hunt.id)
+    setHuntFindings([])
+    setExpandedEvidence({})
+    setFindingsLoading(true)
+    try {
+      const data = await api(`/authz-hunts/${hunt.id}/findings`)
+      setHuntFindings(Array.isArray(data) ? data : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load findings', 'error')
+    } finally {
+      setFindingsLoading(false)
+    }
+  }
+
+  const reviewFinding = async (findingId: number) => {
+    try {
+      await api(`/authz-findings/${findingId}/review`, { method: 'POST', body: JSON.stringify({}) })
+      notify('Finding marked reviewed', 'success')
+      setHuntFindings((prev: any[]) =>
+        prev.map((f) => (f.id === findingId ? { ...f, reviewed_at: new Date().toISOString() } : f))
+      )
+    } catch (e: any) {
+      notify(e.message || 'Could not record the review', 'error')
+    }
+  }
+
+  const suggestProbes = async () => {
+    if (!specUrl.trim()) return
+    setSuggesting(true)
+    try {
+      const res = await api('/authz-hunts/suggest-probes', {
+        method: 'POST',
+        body: JSON.stringify({ spec_url: specUrl.trim() }),
+      })
+      const suggestions = Array.isArray(res?.suggestions) ? res.suggestions : []
+      if (suggestions.length === 0) {
+        notify('No id-shaped GET endpoints found in that spec', 'info')
+        return
+      }
+      setProbes((prev) => {
+        // Drop a single still-empty starter probe before appending suggestions.
+        const base = prev.length === 1 && !prev[0].path ? [] : prev
+        return [
+          ...base,
+          ...suggestions.map((s: any) => ({
+            method: s.method,
+            path: s.path,
+            id_param: s.id_param,
+            owner_role: '',
+            owner_value: '',
+            description: s.description || '',
+          })),
+        ]
+      })
+      notify(`Added ${suggestions.length} suggested probe(s) -- fill in owner_role and owner_value for each`, 'success')
+    } catch (e: any) {
+      notify(e.message || 'Could not fetch or parse that spec', 'error')
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  const updateCrawlRole = (i: number, patch: any) =>
+    setCrawlRoles((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+
+  const runCrawl = async () => {
+    if (!newHunt.base_url.trim()) {
+      notify('Enter a base URL above first', 'error')
+      return
+    }
+    setCrawling(true)
+    try {
+      const res = await api('/authz-hunts/crawl-and-suggest', {
+        method: 'POST',
+        body: JSON.stringify({
+          base_url: newHunt.base_url.trim(),
+          max_pages: 15,
+          roles: crawlRoles
+            .filter((r) => r.role_name.trim() && r.start_url.trim())
+            .map((r) => ({
+              role_name: r.role_name.trim(),
+              start_url: r.start_url.trim(),
+              login: r.login_url.trim()
+                ? {
+                    url: r.login_url.trim(),
+                    username_selector: r.username_selector,
+                    username: r.username,
+                    password_selector: r.password_selector,
+                    password: r.password,
+                    submit_selector: r.submit_selector,
+                  }
+                : undefined,
+            })),
+        }),
+      })
+      setRoles(
+        res.roles.map((r: any) => {
+          const [header_name, header_value] = Object.entries(r.headers || {})[0] || ['Cookie', '']
+          return { name: r.name, header_name, header_value: String(header_value || '') }
+        })
+      )
+      setProbes(
+        res.probes.length > 0
+          ? res.probes.map((p: any) => ({ ...p, description: '' }))
+          : [emptyProbe()]
+      )
+      notify(`Crawl found ${res.probes.length} candidate probe(s) across ${res.roles.length} role(s)`, 'success')
+    } catch (e: any) {
+      notify(e.message || 'Could not crawl that target', 'error')
+    } finally {
+      setCrawling(false)
+    }
+  }
+
+  const updateRole = (i: number, patch: Partial<ReturnType<typeof emptyRole>>) =>
+    setRoles((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  const updateProbe = (i: number, patch: Partial<ReturnType<typeof emptyProbe>>) =>
+    setProbes((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
+
+  const createHunt = async (e: any) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const payload = {
+        client_id: parseInt(newHunt.client_id),
+        base_url: newHunt.base_url.trim(),
+        roles: roles
+          .filter((r) => r.name.trim())
+          .map((r) => ({
+            name: r.name.trim(),
+            headers: r.header_value.trim() ? { [r.header_name]: r.header_value.trim() } : {},
+          })),
+        probes: probes
+          .filter((p) => p.path.trim() && p.owner_role.trim() && p.owner_value.trim())
+          .map((p) => ({
+            method: p.method,
+            path: p.path.trim(),
+            id_param: p.id_param.trim() || 'id',
+            owner_role: p.owner_role.trim(),
+            owner_value: p.owner_value.trim(),
+            description: p.description?.trim() || undefined,
+          })),
+      }
+      if (payload.roles.length < 2) {
+        notify('Add at least 2 named roles with their auth headers', 'error')
+        setSubmitting(false)
+        return
+      }
+      if (payload.probes.length === 0) {
+        notify('Add at least 1 probe with a path, owner role, and owner value', 'error')
+        setSubmitting(false)
+        return
+      }
+      await api('/authz-hunts', { method: 'POST', body: JSON.stringify(payload) })
+      setNewHunt({ client_id: '', base_url: '' })
+      setRoles([emptyRole(), emptyRole()])
+      setProbes([emptyProbe()])
+      setSpecUrl('')
+      notify('Authorization hunt completed', 'success')
+      load()
+    } catch (e: any) {
+      notify(e.message || 'Could not run the authorization hunt', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canSubmit = Boolean(newHunt.client_id && newHunt.base_url.trim())
+
+  return (
+    <div style={styles.section}>
+      <h1 style={styles.pageTitle}>Authorization Hunts</h1>
+      <p style={styles.hint}>
+        Prove broken object-level authorization (IDOR/BOLA) instead of just flagging it: log in
+        as two or more roles, replay the same request with another role&apos;s object id, and
+        see whether the response leaks their data -- the &quot;change <code>/invoices/1024</code>{' '}
+        to <code>/invoices/1025</code>&quot; exploit, automated and evidenced. Confirmed leaks
+        still need a named analyst review before they go to a client.
+      </p>
+
+      {canManage && (
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Run a Hunt</h3>
+          <form onSubmit={createHunt}>
+            <Field label="Client" htmlFor="authz-client" required>
+              <Select
+                value={newHunt.client_id}
+                onChange={(e) => setNewHunt({ ...newHunt, client_id: e.target.value })}
+              >
+                <option value="">Select a client</option>
+                {clientsForAuthz.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Base URL" htmlFor="authz-base-url" required hint="e.g. https://api.testbank.sn">
+              <TextInput
+                value={newHunt.base_url}
+                onChange={(e) => setNewHunt({ ...newHunt, base_url: e.target.value })}
+                placeholder="https://api.example.sn"
+              />
+            </Field>
+
+            <h4 style={styles.h4}>Roles</h4>
+            <p style={styles.mutedText}>At least 2 named, authenticated identities to replay requests as.</p>
+            {roles.map((r, i) => (
+              <div key={i} style={styles.formRow}>
+                <TextInput
+                  value={r.name}
+                  onChange={(e) => updateRole(i, { name: e.target.value })}
+                  placeholder={`Role name (e.g. customer-a)`}
+                  aria-label={`Role ${i + 1} name`}
+                />
+                <Select
+                  value={r.header_name}
+                  onChange={(e) => updateRole(i, { header_name: e.target.value })}
+                  aria-label={`Role ${i + 1} header name`}
+                >
+                  {HEADER_NAME_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+                </Select>
+                <TextInput
+                  value={r.header_value}
+                  onChange={(e) => updateRole(i, { header_value: e.target.value })}
+                  placeholder="Header value (e.g. Bearer eyJ...)"
+                  aria-label={`Role ${i + 1} header value`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setRoles((prev) => prev.filter((_, idx) => idx !== i))}
+                  style={styles.buttonGhostLight}
+                  disabled={roles.length <= 2}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setRoles((prev) => [...prev, emptyRole()])} style={styles.buttonGhostLight}>
+              + Add role
+            </button>
+
+            <h4 style={{ ...styles.h4, marginTop: '1.25rem' }}>Probes</h4>
+            <p style={styles.mutedText}>
+              Each probe is one request shape to replay across roles. <code>path</code> must
+              contain a <code>{'{'}id_param{'}'}</code> placeholder, and <code>owner_value</code>{' '}
+              must be a real object id known to belong to <code>owner_role</code>.
+            </p>
+
+            <div style={styles.formRow}>
+              <TextInput
+                value={specUrl}
+                onChange={(e) => setSpecUrl(e.target.value)}
+                placeholder="OpenAPI spec URL (optional) -- e.g. https://api.example.sn/openapi.json"
+                aria-label="OpenAPI spec URL"
+              />
+              <Button type="button" variant="secondary" loading={suggesting} onClick={suggestProbes} disabled={!specUrl.trim()}>
+                Suggest probes from spec
+              </Button>
+            </div>
+
+            <button type="button" onClick={() => setShowCrawl((v) => !v)} style={styles.buttonGhostLight}>
+              {showCrawl ? 'Hide' : 'No spec? Discover via browser crawl'}
+            </button>
+
+            {showCrawl && (
+              <div style={{ border: `1px solid ${BORDER}`, padding: '0.9rem', margin: '0.75rem 0' }}>
+                <p style={styles.mutedText}>
+                  Logs in as each role through its real login form (not a token), crawls same-origin
+                  pages, and auto-fills roles (with the resulting session cookie) and probes from
+                  what each role was actually able to reach. Requires the backend to have Playwright
+                  and a Chromium binary installed.
+                </p>
+                {crawlRoles.map((r, i) => (
+                  <div key={i} style={{ marginBottom: '0.75rem' }}>
+                    <div style={styles.formRow}>
+                      <TextInput value={r.role_name} onChange={(e) => updateCrawlRole(i, { role_name: e.target.value })} placeholder={`Role name (e.g. customer-${i === 0 ? 'a' : 'b'})`} aria-label={`Crawl role ${i + 1} name`} />
+                      <TextInput value={r.start_url} onChange={(e) => updateCrawlRole(i, { start_url: e.target.value })} placeholder="Start URL after login, e.g. https://app.example.sn/dashboard" aria-label={`Crawl role ${i + 1} start URL`} />
+                    </div>
+                    <div style={{ ...styles.formRow, flexWrap: 'wrap' }}>
+                      <TextInput value={r.login_url} onChange={(e) => updateCrawlRole(i, { login_url: e.target.value })} placeholder="Login page URL (leave blank if already public)" aria-label={`Crawl role ${i + 1} login URL`} style={{ minWidth: 220 }} />
+                      <TextInput value={r.username} onChange={(e) => updateCrawlRole(i, { username: e.target.value })} placeholder="Username" aria-label={`Crawl role ${i + 1} username`} style={{ maxWidth: 140 }} />
+                      <TextInput type="password" value={r.password} onChange={(e) => updateCrawlRole(i, { password: e.target.value })} placeholder="Password" aria-label={`Crawl role ${i + 1} password`} style={{ maxWidth: 140 }} />
+                    </div>
+                    <div style={{ ...styles.formRow, flexWrap: 'wrap' }}>
+                      <TextInput value={r.username_selector} onChange={(e) => updateCrawlRole(i, { username_selector: e.target.value })} placeholder="Username field CSS selector" aria-label={`Crawl role ${i + 1} username selector`} style={{ maxWidth: 180 }} />
+                      <TextInput value={r.password_selector} onChange={(e) => updateCrawlRole(i, { password_selector: e.target.value })} placeholder="Password field CSS selector" aria-label={`Crawl role ${i + 1} password selector`} style={{ maxWidth: 180 }} />
+                      <TextInput value={r.submit_selector} onChange={(e) => updateCrawlRole(i, { submit_selector: e.target.value })} placeholder="Submit button CSS selector" aria-label={`Crawl role ${i + 1} submit selector`} style={{ maxWidth: 180 }} />
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" variant="secondary" loading={crawling} onClick={runCrawl}>
+                  Crawl and fill roles/probes
+                </Button>
+              </div>
+            )}
+
+            {probes.map((p, i) => (
+              <div key={i} style={{ ...styles.formRow, flexWrap: 'wrap' }}>
+                <TextInput
+                  value={p.path}
+                  onChange={(e) => updateProbe(i, { path: e.target.value })}
+                  placeholder="/api/invoices/{id}"
+                  aria-label={`Probe ${i + 1} path`}
+                  style={{ minWidth: 200 }}
+                />
+                <TextInput
+                  value={p.id_param}
+                  onChange={(e) => updateProbe(i, { id_param: e.target.value })}
+                  placeholder="id"
+                  aria-label={`Probe ${i + 1} id param`}
+                  style={{ maxWidth: 100 }}
+                />
+                <Select
+                  value={p.owner_role}
+                  onChange={(e) => updateProbe(i, { owner_role: e.target.value })}
+                  aria-label={`Probe ${i + 1} owner role`}
+                >
+                  <option value="">Owner role</option>
+                  {roles.filter((r) => r.name.trim()).map((r) => (
+                    <option key={r.name} value={r.name}>{r.name}</option>
+                  ))}
+                </Select>
+                <TextInput
+                  value={p.owner_value}
+                  onChange={(e) => updateProbe(i, { owner_value: e.target.value })}
+                  placeholder="owner's object id, e.g. 1024"
+                  aria-label={`Probe ${i + 1} owner value`}
+                  style={{ maxWidth: 180 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setProbes((prev) => prev.filter((_, idx) => idx !== i))}
+                  style={styles.buttonGhostLight}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setProbes((prev) => [...prev, emptyProbe()])} style={styles.buttonGhostLight}>
+              + Add probe
+            </button>
+
+            <div style={{ marginTop: '1.25rem' }}>
+              <Button type="submit" loading={submitting} disabled={!canSubmit}>Run hunt</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+        <h3 style={styles.h3}>Hunts</h3>
+        <div style={styles.tableWrap}>
+          <table className="responsive-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <caption className="sr-only">Authorization hunts and their confirmed leak counts</caption>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--c-border)' }}>
+                <th scope="col" style={styles.th}>Base URL</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Probes run</th>
+                <th scope="col" style={styles.th}>Confirmed leaks</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={5} style={styles.tdEmpty}>Loading authorization hunts…</td></tr>}
+              {!loading && authzHunts.length === 0 && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>No hunts yet. Run one above to prove or rule out IDOR/BOLA.</td></tr>
+              )}
+              {authzHunts.map((h: any) => (
+                <tr key={h.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <td className="responsive-primary" style={{ ...styles.td, overflowWrap: 'anywhere' }}>{h.base_url}</td>
+                  <td data-label="Status" style={styles.td}><Badge tone={h.status === 'completed' ? 'success' : 'warning'}>{h.status}</Badge></td>
+                  <td data-label="Probes run" style={styles.td}>{h.probes_run}</td>
+                  <td data-label="Confirmed leaks" style={styles.td}>
+                    {h.confirmed_leaks > 0 ? <Badge tone="danger">{h.confirmed_leaks}</Badge> : <Badge tone="success">0</Badge>}
+                  </td>
+                  <td className="responsive-actions" style={{ ...styles.td, textAlign: 'right' }}>
+                    <button type="button" onClick={() => openFindings(h)} style={styles.buttonGhostLight}>
+                      View findings
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedHuntId && (
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Findings</h3>
+          {findingsLoading && <p style={styles.mutedText} role="status">Loading findings…</p>}
+          {!findingsLoading && huntFindings.length === 0 && <p style={styles.mutedText}>No findings on this hunt.</p>}
+          {huntFindings.map((f: any) => (
+            <div key={f.id} style={{ ...styles.auditRowLight, flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div>
+                  <strong>{f.method} {f.path}</strong>
+                  <br />
+                  <span style={styles.mutedText}>
+                    {f.owner_role} → {f.tested_role} · confidence {Math.round((f.confidence || 0) * 100)}%
+                  </span>
+                </div>
+                <Badge tone={verdictTone(f.verdict)}>{verdictLabel(f.verdict)}</Badge>
+              </div>
+              {f.reason && <p style={{ ...styles.mutedText, marginTop: '0.4rem' }}>{f.reason}</p>}
+              {f.narrative && (
+                <p style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>
+                  <strong>Exploit narrative: </strong>{f.narrative}
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedEvidence((prev) => ({ ...prev, [f.id]: !prev[f.id] }))}
+                  style={styles.buttonGhostLight}
+                >
+                  {expandedEvidence[f.id] ? 'Hide evidence' : 'View evidence'}
+                </button>
+                {canManage && f.verdict === 'confirmed_leak' && (
+                  f.reviewed_at
+                    ? <Badge tone="success">Reviewed</Badge>
+                    : <button type="button" onClick={() => reviewFinding(f.id)} style={styles.buttonGhostLight}>
+                        Mark reviewed
+                      </button>
+                )}
+              </div>
+              {expandedEvidence[f.id] && f.evidence && (
+                <pre style={styles.codeBlock}>{JSON.stringify(f.evidence, null, 2)}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// PR REVIEWS (whitebox: risk-ranked GitHub pull-request review)
+// ============================================================
+function PRReviewsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, prReviews, setPrReviews, canManage } = ctx
+  const [clientsForPr, setClientsForPr] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ client_id: '' as any, repo: '', pr_number: '', github_token: '', post_comment: false, provider: 'github', host: '' })
+  const [selectedReviewId, setSelectedReviewId] = useState<any>(null)
+  const [reviewFindings, setReviewFindings] = useState<any[]>([])
+  const [findingsLoading, setFindingsLoading] = useState(false)
+
+  const load = async () => {
+    try {
+      const [reviewsData, clientsData] = await Promise.all([api('/pr-reviews'), api('/clients')])
+      setPrReviews(Array.isArray(reviewsData) ? reviewsData : [])
+      setClientsForPr(Array.isArray(clientsData) ? clientsData : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load PR reviews', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [token])
+
+  const openFindings = async (review: any) => {
+    setSelectedReviewId(review.id)
+    setReviewFindings([])
+    setFindingsLoading(true)
+    try {
+      const data = await api(`/pr-reviews/${review.id}/findings`)
+      setReviewFindings(Array.isArray(data) ? data : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load findings', 'error')
+    } finally {
+      setFindingsLoading(false)
+    }
+  }
+
+  const createReview = async (e: any) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await api('/pr-reviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: parseInt(form.client_id),
+          repo: form.repo.trim(),
+          pr_number: parseInt(form.pr_number),
+          github_token: form.github_token.trim(),
+          post_comment: form.post_comment,
+          provider: form.provider,
+          host: form.provider === 'forgejo' ? form.host.trim() : undefined,
+        }),
+      })
+      setForm({ client_id: form.client_id, repo: '', pr_number: '', github_token: '', post_comment: false, provider: form.provider, host: '' })
+      notify('PR review completed', 'success')
+      load()
+    } catch (e: any) {
+      notify(e.message || 'Could not review that pull request', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canSubmit = Boolean(
+    form.client_id &&
+    form.repo.trim() &&
+    form.pr_number &&
+    form.github_token.trim() &&
+    (form.provider !== 'forgejo' || form.host.trim())
+  )
+
+  return (
+    <div style={styles.section}>
+      <h1 style={styles.pageTitle}>PR Reviews</h1>
+      <p style={styles.hint}>
+        Whitebox review for a single pull request: fetches its diff, flags risky patterns
+        introduced by the added lines (hardcoded secrets, insecure defaults, dangerous calls),
+        ranks them by severity, and can post a findings comment on the PR itself. The access
+        token you provide is used once, in memory, to make the GitHub API calls -- it is never
+        stored.
+      </p>
+
+      {canManage && (
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Review a Pull Request</h3>
+          <form onSubmit={createReview}>
+            <Field label="Client" htmlFor="pr-client" required>
+              <Select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })}>
+                <option value="">Select a client</option>
+                {clientsForPr.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Provider" htmlFor="pr-provider" required>
+              <Select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
+                <option value="github">GitHub</option>
+                <option value="bitbucket">Bitbucket Cloud</option>
+                <option value="forgejo">Forgejo / Gitea (self-hosted)</option>
+              </Select>
+            </Field>
+            {form.provider === 'forgejo' && (
+              <Field label="Forgejo host" htmlFor="pr-host" required hint="e.g. https://forgejo.example.sn">
+                <TextInput
+                  value={form.host}
+                  onChange={(e) => setForm({ ...form, host: e.target.value })}
+                  placeholder="https://forgejo.example.sn"
+                />
+              </Field>
+            )}
+            <Field label="Repository" htmlFor="pr-repo" required hint="owner/name (workspace/repo_slug for Bitbucket), e.g. utachicodes/ultron">
+              <TextInput
+                value={form.repo}
+                onChange={(e) => setForm({ ...form, repo: e.target.value })}
+                placeholder="owner/name"
+              />
+            </Field>
+            <Field label="Pull request number" htmlFor="pr-number" required>
+              <TextInput
+                type="number"
+                min={1}
+                value={form.pr_number}
+                onChange={(e) => setForm({ ...form, pr_number: e.target.value })}
+              />
+            </Field>
+            <Field label="Access token" htmlFor="pr-token" required hint="A token with read access to this repo (and comment access if posting). Used once, never stored.">
+              <TextInput
+                type="password"
+                value={form.github_token}
+                onChange={(e) => setForm({ ...form, github_token: e.target.value })}
+                placeholder="ghp_... / Bitbucket app password / Forgejo token"
+              />
+            </Field>
+            <label style={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={form.post_comment}
+                onChange={(e) => setForm({ ...form, post_comment: e.target.checked })}
+              />
+              Post the findings as a comment on the PR
+            </label>
+            <div style={{ marginTop: '1rem' }}>
+              <Button type="submit" loading={submitting} disabled={!canSubmit}>Run review</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+        <h3 style={styles.h3}>Reviews</h3>
+        <div style={styles.tableWrap}>
+          <table className="responsive-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <caption className="sr-only">PR reviews and their findings</caption>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--c-border)' }}>
+                <th scope="col" style={styles.th}>Repo / PR</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Findings</th>
+                <th scope="col" style={styles.th}>Comment</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={5} style={styles.tdEmpty}>Loading PR reviews…</td></tr>}
+              {!loading && prReviews.length === 0 && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>No PR reviews yet. Review one above.</td></tr>
+              )}
+              {prReviews.map((r: any) => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <td className="responsive-primary" style={{ ...styles.td, overflowWrap: 'anywhere' }}>
+                    <Badge tone="neutral">{r.provider}</Badge> {r.repo}#{r.pr_number}
+                    {r.pr_title && <><br /><span style={styles.mutedText}>{r.pr_title}</span></>}
+                  </td>
+                  <td data-label="Status" style={styles.td}>
+                    <Badge tone={r.status === 'completed' ? 'success' : r.status === 'failed' ? 'danger' : 'warning'}>{r.status}</Badge>
+                  </td>
+                  <td data-label="Findings" style={styles.td}>
+                    {r.findings_count > 0 ? <Badge tone="warning">{r.findings_count}</Badge> : <Badge tone="success">0</Badge>}
+                  </td>
+                  <td data-label="Comment" style={styles.td}>
+                    <Badge tone={r.comment_posted ? 'success' : 'neutral'}>{r.comment_posted ? 'Posted' : 'Not posted'}</Badge>
+                  </td>
+                  <td className="responsive-actions" style={{ ...styles.td, textAlign: 'right' }}>
+                    <button type="button" onClick={() => openFindings(r)} style={styles.buttonGhostLight}>
+                      View findings
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedReviewId && (
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Findings</h3>
+          {findingsLoading && <p style={styles.mutedText} role="status">Loading findings…</p>}
+          {!findingsLoading && reviewFindings.length === 0 && <p style={styles.mutedText}>No risky patterns found in the added lines of this PR.</p>}
+          {reviewFindings.map((f: any) => (
+            <div key={f.id} style={styles.auditRowLight}>
+              <div style={{ flex: 1 }}>
+                <strong>{f.file_path}</strong>:{f.line_number}
+                <br />
+                <span style={styles.mutedText}>{f.summary}</span>
+                {f.suggested_fix && (
+                  <>
+                    <br />
+                    <span style={styles.mutedText}>Fix: {f.suggested_fix}</span>
+                  </>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Badge tone={severityTone(f.severity || 'medium')}>{f.severity}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// CAMPAIGNS (commander-orchestrated multi-task runs)
+// ============================================================
+function emptyCampaignAuthzTask() {
+  return {
+    base_url: '',
+    roles: [emptyRole(), emptyRole()],
+    probes: [emptyProbe()],
+  }
+}
+
+function emptyCampaignPrTask() {
+  return { repo: '', pr_number: '', github_token: '', post_comment: false }
+}
+
+function CampaignsSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, campaigns, setCampaigns, canManage } = ctx
+  const [clientsForCampaign, setClientsForCampaign] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [goal, setGoal] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [authzTasks, setAuthzTasks] = useState<any[]>([])
+  const [prTasks, setPrTasks] = useState<any[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState<any>(null)
+  const [campaignFacts, setCampaignFacts] = useState<any[]>([])
+  const [factsLoading, setFactsLoading] = useState(false)
+
+  const load = async () => {
+    try {
+      const [campaignsData, clientsData] = await Promise.all([api('/campaigns'), api('/clients')])
+      setCampaigns(Array.isArray(campaignsData) ? campaignsData : [])
+      setClientsForCampaign(Array.isArray(clientsData) ? clientsData : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load campaigns', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [token])
+
+  const openFacts = async (campaign: any) => {
+    setSelectedCampaignId(campaign.id)
+    setCampaignFacts([])
+    setFactsLoading(true)
+    try {
+      const data = await api(`/campaigns/${campaign.id}/facts`)
+      setCampaignFacts(Array.isArray(data) ? data : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load the fact log', 'error')
+    } finally {
+      setFactsLoading(false)
+    }
+  }
+
+  const updateAuthzTask = (i: number, patch: any) =>
+    setAuthzTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
+  const updateAuthzTaskRole = (taskIdx: number, roleIdx: number, patch: any) =>
+    setAuthzTasks((prev) =>
+      prev.map((t, idx) =>
+        idx === taskIdx
+          ? { ...t, roles: t.roles.map((r: any, ri: number) => (ri === roleIdx ? { ...r, ...patch } : r)) }
+          : t
+      )
+    )
+  const updateAuthzTaskProbe = (taskIdx: number, probeIdx: number, patch: any) =>
+    setAuthzTasks((prev) =>
+      prev.map((t, idx) =>
+        idx === taskIdx
+          ? { ...t, probes: t.probes.map((p: any, pi: number) => (pi === probeIdx ? { ...p, ...patch } : p)) }
+          : t
+      )
+    )
+  const updatePrTask = (i: number, patch: any) =>
+    setPrTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
+
+  const createCampaign = async (e: any) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const payload = {
+        client_id: parseInt(clientId),
+        goal: goal.trim(),
+        authz_hunts: authzTasks.map((t) => ({
+          base_url: t.base_url.trim(),
+          roles: t.roles
+            .filter((r: any) => r.name.trim())
+            .map((r: any) => ({
+              name: r.name.trim(),
+              headers: r.header_value.trim() ? { [r.header_name]: r.header_value.trim() } : {},
+            })),
+          probes: t.probes
+            .filter((p: any) => p.path.trim() && p.owner_role.trim() && p.owner_value.trim())
+            .map((p: any) => ({
+              method: p.method,
+              path: p.path.trim(),
+              id_param: p.id_param.trim() || 'id',
+              owner_role: p.owner_role.trim(),
+              owner_value: p.owner_value.trim(),
+            })),
+        })),
+        pr_reviews: prTasks
+          .filter((t) => t.repo.trim() && t.pr_number && t.github_token.trim())
+          .map((t) => ({
+            repo: t.repo.trim(),
+            pr_number: parseInt(t.pr_number),
+            github_token: t.github_token.trim(),
+            post_comment: t.post_comment,
+          })),
+      }
+      if (payload.authz_hunts.length === 0 && payload.pr_reviews.length === 0) {
+        notify('Add at least one authorization-hunt or PR-review task', 'error')
+        setSubmitting(false)
+        return
+      }
+      await api('/campaigns', { method: 'POST', body: JSON.stringify(payload) })
+      setGoal('')
+      setAuthzTasks([])
+      setPrTasks([])
+      notify('Campaign completed', 'success')
+      load()
+    } catch (e: any) {
+      notify(e.message || 'Could not run the campaign', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canSubmit = Boolean(clientId && goal.trim() && (authzTasks.length > 0 || prTasks.length > 0))
+
+  return (
+    <div style={styles.section}>
+      <h1 style={styles.pageTitle}>Campaigns</h1>
+      <p style={styles.hint}>
+        Commander-orchestrated runs: give it a goal and a set of authorization-hunt and/or
+        PR-review tasks, and it dispatches them (in parallel), consolidating confirmed findings
+        into a layered fact log. Architecturally inspired by sapper-v2's commander/worker role
+        division — every task still only ever calls Ultron's own proof engines, with the same
+        scope limits and human-review gates.
+      </p>
+
+      {canManage && (
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Run a Campaign</h3>
+          <form onSubmit={createCampaign}>
+            <Field label="Client" htmlFor="campaign-client" required>
+              <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                <option value="">Select a client</option>
+                {clientsForCampaign.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Goal" htmlFor="campaign-goal" required hint="What this campaign is assessing, in plain language">
+              <TextInput value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Assess the new customer portal before launch" />
+            </Field>
+
+            <h4 style={styles.h4}>Authorization-Hunt Tasks</h4>
+            {authzTasks.map((t, ti) => (
+              <div key={ti} style={{ border: `1px solid ${BORDER}`, padding: '0.9rem', marginBottom: '0.75rem' }}>
+                <div style={styles.formRow}>
+                  <TextInput
+                    value={t.base_url}
+                    onChange={(e) => updateAuthzTask(ti, { base_url: e.target.value })}
+                    placeholder="Base URL, e.g. https://api.example.sn"
+                    aria-label={`Task ${ti + 1} base URL`}
+                    style={{ flex: 1 }}
+                  />
+                  <button type="button" onClick={() => setAuthzTasks((prev) => prev.filter((_, idx) => idx !== ti))} style={styles.buttonGhostLight}>
+                    Remove task
+                  </button>
+                </div>
+                {t.roles.map((r: any, ri: number) => (
+                  <div key={ri} style={styles.formRow}>
+                    <TextInput value={r.name} onChange={(e) => updateAuthzTaskRole(ti, ri, { name: e.target.value })} placeholder="Role name" aria-label={`Task ${ti + 1} role ${ri + 1} name`} />
+                    <Select value={r.header_name} onChange={(e) => updateAuthzTaskRole(ti, ri, { header_name: e.target.value })} aria-label={`Task ${ti + 1} role ${ri + 1} header name`}>
+                      {HEADER_NAME_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+                    </Select>
+                    <TextInput value={r.header_value} onChange={(e) => updateAuthzTaskRole(ti, ri, { header_value: e.target.value })} placeholder="Header value" aria-label={`Task ${ti + 1} role ${ri + 1} header value`} />
+                  </div>
+                ))}
+                {t.probes.map((p: any, pi: number) => (
+                  <div key={pi} style={{ ...styles.formRow, flexWrap: 'wrap' }}>
+                    <TextInput value={p.path} onChange={(e) => updateAuthzTaskProbe(ti, pi, { path: e.target.value })} placeholder="/api/invoices/{id}" aria-label={`Task ${ti + 1} probe ${pi + 1} path`} style={{ minWidth: 180 }} />
+                    <TextInput value={p.id_param} onChange={(e) => updateAuthzTaskProbe(ti, pi, { id_param: e.target.value })} placeholder="id" aria-label={`Task ${ti + 1} probe ${pi + 1} id param`} style={{ maxWidth: 90 }} />
+                    <Select value={p.owner_role} onChange={(e) => updateAuthzTaskProbe(ti, pi, { owner_role: e.target.value })} aria-label={`Task ${ti + 1} probe ${pi + 1} owner role`}>
+                      <option value="">Owner role</option>
+                      {t.roles.filter((r: any) => r.name.trim()).map((r: any) => <option key={r.name} value={r.name}>{r.name}</option>)}
+                    </Select>
+                    <TextInput value={p.owner_value} onChange={(e) => updateAuthzTaskProbe(ti, pi, { owner_value: e.target.value })} placeholder="owner's object id" aria-label={`Task ${ti + 1} probe ${pi + 1} owner value`} style={{ maxWidth: 160 }} />
+                  </div>
+                ))}
+              </div>
+            ))}
+            <button type="button" onClick={() => setAuthzTasks((prev) => [...prev, emptyCampaignAuthzTask()])} style={styles.buttonGhostLight}>
+              + Add authorization-hunt task
+            </button>
+
+            <h4 style={{ ...styles.h4, marginTop: '1.25rem' }}>PR-Review Tasks</h4>
+            {prTasks.map((t, ti) => (
+              <div key={ti} style={{ ...styles.formRow, flexWrap: 'wrap' }}>
+                <TextInput value={t.repo} onChange={(e) => updatePrTask(ti, { repo: e.target.value })} placeholder="owner/name" aria-label={`PR task ${ti + 1} repo`} />
+                <TextInput type="number" min={1} value={t.pr_number} onChange={(e) => updatePrTask(ti, { pr_number: e.target.value })} placeholder="PR #" aria-label={`PR task ${ti + 1} number`} style={{ maxWidth: 100 }} />
+                <TextInput type="password" value={t.github_token} onChange={(e) => updatePrTask(ti, { github_token: e.target.value })} placeholder="GitHub token" aria-label={`PR task ${ti + 1} token`} />
+                <button type="button" onClick={() => setPrTasks((prev) => prev.filter((_, idx) => idx !== ti))} style={styles.buttonGhostLight}>
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setPrTasks((prev) => [...prev, emptyCampaignPrTask()])} style={styles.buttonGhostLight}>
+              + Add PR-review task
+            </button>
+
+            <div style={{ marginTop: '1.25rem' }}>
+              <Button type="submit" loading={submitting} disabled={!canSubmit}>Run campaign</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+        <h3 style={styles.h3}>Campaigns</h3>
+        <div style={styles.tableWrap}>
+          <table className="responsive-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <caption className="sr-only">Campaigns and their task progress</caption>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--c-border)' }}>
+                <th scope="col" style={styles.th}>Goal</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Tasks</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={4} style={styles.tdEmpty}>Loading campaigns…</td></tr>}
+              {!loading && campaigns.length === 0 && (
+                <tr><td colSpan={4} style={styles.tdEmpty}>No campaigns yet. Run one above.</td></tr>
+              )}
+              {campaigns.map((c: any) => (
+                <tr key={c.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <td className="responsive-primary" style={{ ...styles.td, overflowWrap: 'anywhere' }}>{c.goal}</td>
+                  <td data-label="Status" style={styles.td}><Badge tone={c.status === 'completed' ? 'success' : 'warning'}>{c.status}</Badge></td>
+                  <td data-label="Tasks" style={styles.td}>{c.tasks_completed}/{c.tasks_total}</td>
+                  <td className="responsive-actions" style={{ ...styles.td, textAlign: 'right' }}>
+                    <button type="button" onClick={() => openFacts(c)} style={styles.buttonGhostLight}>View facts</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedCampaignId && (
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Fact Log</h3>
+          {(() => {
+            const campaign = campaigns.find((c: any) => c.id === selectedCampaignId)
+            return campaign?.summary ? <p style={{ ...styles.mutedText, marginBottom: '1rem' }}>{campaign.summary}</p> : null
+          })()}
+          {factsLoading && <p style={styles.mutedText} role="status">Loading facts…</p>}
+          {!factsLoading && campaignFacts.length === 0 && <p style={styles.mutedText}>No significant findings in this campaign.</p>}
+          {campaignFacts.map((f: any) => (
+            <div key={f.id} style={styles.auditRowLight}>
+              <div style={{ flex: 1 }}>
+                <strong>{f.title}</strong>
+                <br />
+                <span style={styles.mutedText}>{f.summary}</span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Badge tone={severityTone(f.severity)}>{f.severity}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// AI RED-TEAM (attack + defend AI Guard)
+// ============================================================
+function AIRedTeamSection({ ctx }: { ctx: any }) {
+  const { api, token, notify, redteamRuns, setRedteamRuns, canManage } = ctx
+  const [clientsForRedteam, setClientsForRedteam] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [clientId, setClientId] = useState('')
+  const [mode, setMode] = useState('internal')
+  const [externalUrl, setExternalUrl] = useState('')
+  const [headerName, setHeaderName] = useState('Authorization')
+  const [headerValue, setHeaderValue] = useState('')
+  const [promptField, setPromptField] = useState('prompt')
+  const [responseField, setResponseField] = useState('response')
+  const [selectedRunId, setSelectedRunId] = useState<any>(null)
+  const [runResults, setRunResults] = useState<any[]>([])
+  const [resultsLoading, setResultsLoading] = useState(false)
+  const [patterns, setPatterns] = useState<any[]>([])
+
+  const load = async () => {
+    try {
+      const [runsData, clientsData] = await Promise.all([api('/ai-redteam/runs'), api('/clients')])
+      setRedteamRuns(Array.isArray(runsData) ? runsData : [])
+      setClientsForRedteam(Array.isArray(clientsData) ? clientsData : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load red-team runs', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadPatterns = async () => {
+    try {
+      const data = await api('/jailbreak-patterns')
+      setPatterns(Array.isArray(data) ? data : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load jailbreak patterns', 'error')
+    }
+  }
+
+  useEffect(() => { load(); loadPatterns() }, [token])
+
+  const openResults = async (run: any) => {
+    setSelectedRunId(run.id)
+    setRunResults([])
+    setResultsLoading(true)
+    try {
+      const data = await api(`/ai-redteam/runs/${run.id}/results`)
+      setRunResults(Array.isArray(data) ? data : [])
+    } catch (e: any) {
+      notify(e.message || 'Could not load results', 'error')
+    } finally {
+      setResultsLoading(false)
+    }
+  }
+
+  const runAttack = async (e: any) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const payload: any = { client_id: parseInt(clientId), mode }
+      if (mode === 'external') {
+        payload.external = {
+          url: externalUrl.trim(),
+          headers: headerValue.trim() ? { [headerName]: headerValue.trim() } : {},
+          prompt_field: promptField.trim() || 'prompt',
+          response_field: responseField.trim() || 'response',
+        }
+      }
+      await api('/ai-redteam/runs', { method: 'POST', body: JSON.stringify(payload) })
+      notify('Red-team run completed', 'success')
+      load()
+      loadPatterns()
+    } catch (e: any) {
+      notify(e.message || 'Could not run the attack', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canSubmit = Boolean(clientId && (mode === 'internal' || externalUrl.trim()))
+
+  return (
+    <div style={styles.section}>
+      <h1 style={styles.pageTitle}>AI Red-Team</h1>
+      <p style={styles.hint}>
+        Fires known prompt-injection/jailbreak patterns at a declared AI target — Ultron's own AI
+        Guard, or a client's own AI-powered feature — using canary tokens for deterministic
+        grading. Every confirmed bypass is turned into a defense pattern checked on every future
+        AI Guard query, closing the loop without touching source code.
+      </p>
+
+      {canManage && (
+        <div style={styles.lightCard}>
+          <h3 style={styles.h3}>Run an Attack</h3>
+          <form onSubmit={runAttack}>
+            <Field label="Client" htmlFor="redteam-client" required>
+              <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                <option value="">Select a client</option>
+                {clientsForRedteam.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Target" htmlFor="redteam-mode" required>
+              <Select value={mode} onChange={(e) => setMode(e.target.value)}>
+                <option value="internal">Ultron's own AI Guard</option>
+                <option value="external">A client's AI-powered feature (HTTP)</option>
+              </Select>
+            </Field>
+            {mode === 'external' && (
+              <>
+                <Field label="Endpoint URL" htmlFor="redteam-url" required>
+                  <TextInput value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} placeholder="https://client-app.example.sn/ai/chat" />
+                </Field>
+                <div style={styles.formRow}>
+                  <Select value={headerName} onChange={(e) => setHeaderName(e.target.value)}>
+                    {HEADER_NAME_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+                  </Select>
+                  <TextInput value={headerValue} onChange={(e) => setHeaderValue(e.target.value)} placeholder="Header value (optional)" />
+                </div>
+                <div style={styles.formRow}>
+                  <TextInput value={promptField} onChange={(e) => setPromptField(e.target.value)} placeholder="Request JSON field for the prompt" />
+                  <TextInput value={responseField} onChange={(e) => setResponseField(e.target.value)} placeholder="Response JSON field to read back" />
+                </div>
+              </>
+            )}
+            <div style={{ marginTop: '1rem' }}>
+              <Button type="submit" loading={submitting} disabled={!canSubmit}>Run attack</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+        <h3 style={styles.h3}>Runs</h3>
+        <div style={styles.tableWrap}>
+          <table className="responsive-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <caption className="sr-only">AI red-team runs and their bypass counts</caption>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--c-border)' }}>
+                <th scope="col" style={styles.th}>Target</th>
+                <th scope="col" style={styles.th}>Status</th>
+                <th scope="col" style={styles.th}>Bypassed</th>
+                <th scope="col" style={styles.th}>Patterns Learned</th>
+                <th scope="col" style={styles.th}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={5} style={styles.tdEmpty}>Loading runs…</td></tr>}
+              {!loading && redteamRuns.length === 0 && (
+                <tr><td colSpan={5} style={styles.tdEmpty}>No runs yet. Run an attack above.</td></tr>
+              )}
+              {redteamRuns.map((r: any) => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <td className="responsive-primary" style={{ ...styles.td, overflowWrap: 'anywhere' }}>{r.target_summary}</td>
+                  <td data-label="Status" style={styles.td}><Badge tone={r.status === 'completed' ? 'success' : 'warning'}>{r.status}</Badge></td>
+                  <td data-label="Bypassed" style={styles.td}>
+                    {r.bypassed_count > 0 ? <Badge tone="danger">{r.bypassed_count}/{r.payloads_run}</Badge> : <Badge tone="success">0/{r.payloads_run}</Badge>}
+                  </td>
+                  <td data-label="Patterns Learned" style={styles.td}>{r.patterns_learned}</td>
+                  <td className="responsive-actions" style={{ ...styles.td, textAlign: 'right' }}>
+                    <button type="button" onClick={() => openResults(r)} style={styles.buttonGhostLight}>View results</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedRunId && (
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>Results</h3>
+          {resultsLoading && <p style={styles.mutedText} role="status">Loading results…</p>}
+          {runResults.map((r: any) => (
+            <div key={r.id} style={styles.auditRowLight}>
+              <div style={{ flex: 1 }}>
+                <strong>{r.category}</strong>
+                {r.pattern_learned && <span style={styles.mutedText}> — new defense pattern learned</span>}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Badge tone={r.verdict === 'bypassed' ? 'danger' : r.verdict === 'error' ? 'warning' : 'success'}>{r.verdict}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+        <h3 style={styles.h3}>Active Defense Patterns</h3>
+        {patterns.length === 0 && <p style={styles.mutedText}>No learned patterns yet — the 5 well-known categories are pre-armed by default.</p>}
+        {patterns.map((p: any) => (
+          <div key={p.id} style={styles.auditRowLight}>
+            <div style={{ flex: 1 }}>
+              <strong>{p.category}</strong>
+              <br />
+              <span style={styles.mutedText}>{p.pattern}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // COMPLIANCE
 // ============================================================
 function ComplianceSection({ ctx }: { ctx: any }) {
@@ -3620,6 +4868,11 @@ function ComplianceSection({ ctx }: { ctx: any }) {
     const [summary, setSummary] = useState<any>(null)
     const [mappings, setMappings] = useState<any[]>([])
     const [working, setWorking] = useState(false)
+    const [soc2Readiness, setSoc2Readiness] = useState<any>(null)
+    const [soc2ReportType, setSoc2ReportType] = useState('type2')
+    const [soc2Working, setSoc2Working] = useState(false)
+    const [isoReadiness, setIsoReadiness] = useState<any>(null)
+    const [isoWorking, setIsoWorking] = useState(false)
 
     useEffect(() => {
       api('/clients')
@@ -3643,6 +4896,8 @@ function ComplianceSection({ ctx }: { ctx: any }) {
     useEffect(() => {
       setSummary(null)
       setMappings([])
+      setSoc2Readiness(null)
+      setIsoReadiness(null)
       setSectorOverride('')
       if (!selectedClientId) {
         setClientFindings([])
@@ -3699,6 +4954,38 @@ function ComplianceSection({ ctx }: { ctx: any }) {
         notify(e.message || 'Could not generate the mapping', 'error')
       } finally {
         setWorking(false)
+      }
+    }
+
+    const runSoc2 = async () => {
+      setSoc2Working(true)
+      try {
+        const findings = clientFindings.map((f: any) => ({ id: f.id, title: f.title, severity: f.severity }))
+        const res = await api('/compliance/soc2', {
+          method: 'POST',
+          body: JSON.stringify({ findings, report_type: soc2ReportType }),
+        })
+        setSoc2Readiness(res)
+      } catch (e: any) {
+        notify(e.message || 'Could not build the SOC 2 readiness summary', 'error')
+      } finally {
+        setSoc2Working(false)
+      }
+    }
+
+    const runIso27001 = async () => {
+      setIsoWorking(true)
+      try {
+        const findings = clientFindings.map((f: any) => ({ id: f.id, title: f.title, severity: f.severity }))
+        const res = await api('/compliance/iso27001', {
+          method: 'POST',
+          body: JSON.stringify({ findings }),
+        })
+        setIsoReadiness(res)
+      } catch (e: any) {
+        notify(e.message || 'Could not build the ISO 27001 readiness summary', 'error')
+      } finally {
+        setIsoWorking(false)
       }
     }
 
@@ -3825,6 +5112,124 @@ function ComplianceSection({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>SOC 2 Readiness (AICPA Trust Services Criteria)</h3>
+          <p style={styles.hint}>
+            A readiness signal built from the same findings, mapped to SOC 2 control categories —
+            not an audit or attestation. Only a licensed CPA firm can issue a SOC 2 report.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: '0 0 220px' }}>
+              <Field label="Target report type" htmlFor="soc2-report-type">
+                <Select value={soc2ReportType} onChange={(e) => setSoc2ReportType(e.target.value)}>
+                  <option value="type2">Type II (operating effectiveness)</option>
+                  <option value="type1">Type I (point in time)</option>
+                </Select>
+              </Field>
+            </div>
+            <Button variant="secondary" onClick={runSoc2} loading={soc2Working} disabled={!selectedClientId}>
+              Run readiness check
+            </Button>
+          </div>
+          {!selectedClientId && (
+            <p style={{ ...styles.mutedText, marginTop: '0.5rem' }}>Select a client above first.</p>
+          )}
+          {soc2Readiness && (
+            <div style={{ marginTop: '1rem' }}>
+              <div className="responsive-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                <div><div style={styles.statLabel}>Readiness</div><div style={styles.statValue}>{soc2Readiness.readiness_percent}%</div></div>
+                <div><div style={styles.statLabel}>Open Control Gaps</div><div style={styles.statValue}>{soc2Readiness.gap_count}</div></div>
+                <div><div style={styles.statLabel}>Critical Gaps</div><div style={styles.statValue}>{soc2Readiness.critical_gap_count}</div></div>
+                <div><div style={styles.statLabel}>Not Assessable</div><div style={styles.statValue}>{soc2Readiness.not_assessed_count}</div></div>
+              </div>
+              <p style={styles.mutedText}>{soc2Readiness.disclaimer}</p>
+              <div style={{ marginTop: '0.75rem' }}>
+                {soc2Readiness.controls.map((c: any) => (
+                  <div key={c.control} style={styles.auditRowLight}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{c.label}</strong>
+                      <br />
+                      <span style={styles.mutedText}>{c.description}</span>
+                      {c.open_items.length > 0 && (
+                        <ul style={{ marginLeft: '1.1rem', marginTop: '0.4rem', paddingLeft: 0, color: TEXT_DIM, fontSize: '0.82rem' }}>
+                          {c.open_items.map((item: any, idx: number) => (
+                            <li key={item.finding_id ?? idx}>
+                              <Badge tone={severityTone(item.severity)}>{item.severity}</Badge> {item.title}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <Badge tone={c.status === 'gap' ? 'warning' : c.status === 'not_assessed' ? 'neutral' : 'success'}>
+                        {c.status === 'gap' ? 'Gap' : c.status === 'not_assessed' ? 'Not assessed' : 'No gaps found'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={styles.detailLabelLight}>Next Steps</div>
+              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', paddingLeft: 0, color: TEXT_DIM }}>
+                {soc2Readiness.next_steps.map((s: string) => <li key={s}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div style={{ ...styles.lightCard, marginTop: '1rem' }}>
+          <h3 style={styles.h3}>ISO/IEC 27001:2022 Readiness (Annex A)</h3>
+          <p style={styles.hint}>
+            A readiness signal mapped to ISO 27001 Annex A control themes — not a certification
+            or Statement of Applicability. Physical and most people controls can't be assessed
+            by scanning and are reported as such, not scored as passing.
+          </p>
+          <Button variant="secondary" onClick={runIso27001} loading={isoWorking} disabled={!selectedClientId}>
+            Run readiness check
+          </Button>
+          {!selectedClientId && (
+            <p style={{ ...styles.mutedText, marginTop: '0.5rem' }}>Select a client above first.</p>
+          )}
+          {isoReadiness && (
+            <div style={{ marginTop: '1rem' }}>
+              <div className="responsive-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                <div><div style={styles.statLabel}>Readiness</div><div style={styles.statValue}>{isoReadiness.readiness_percent}%</div></div>
+                <div><div style={styles.statLabel}>Open Control Gaps</div><div style={styles.statValue}>{isoReadiness.gap_count}</div></div>
+                <div><div style={styles.statLabel}>Not Assessable</div><div style={styles.statValue}>{isoReadiness.not_assessed_count}</div></div>
+              </div>
+              <p style={styles.mutedText}>{isoReadiness.disclaimer}</p>
+              <div style={{ marginTop: '0.75rem' }}>
+                {isoReadiness.controls.map((c: any) => (
+                  <div key={c.control} style={styles.auditRowLight}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{c.label}</strong> <span style={styles.mutedText}>({c.annex_controls.join(', ')})</span>
+                      <br />
+                      <span style={styles.mutedText}>{c.description}</span>
+                      {c.open_items.length > 0 && (
+                        <ul style={{ marginLeft: '1.1rem', marginTop: '0.4rem', paddingLeft: 0, color: TEXT_DIM, fontSize: '0.82rem' }}>
+                          {c.open_items.map((item: any, idx: number) => (
+                            <li key={item.finding_id ?? idx}>
+                              <Badge tone={severityTone(item.severity)}>{item.severity}</Badge> {item.title}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <Badge tone={c.status === 'gap' ? 'warning' : c.status === 'not_assessed' ? 'neutral' : 'success'}>
+                        {c.status === 'gap' ? 'Gap' : c.status === 'not_assessed' ? 'Not assessed' : 'No gaps found'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={styles.detailLabelLight}>Next Steps</div>
+              <ul style={{ marginLeft: '1.25rem', marginTop: '0.5rem', paddingLeft: 0, color: TEXT_DIM }}>
+                {isoReadiness.next_steps.map((s: string) => <li key={s}>{s}</li>)}
+              </ul>
             </div>
           )}
         </div>
@@ -4200,6 +5605,7 @@ const styles: any = {
     margin: '1rem 0',
   },
   h3: { fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.6rem', color: TEXT },
+  h4: { fontSize: '0.92rem', fontWeight: '600', marginBottom: '0.3rem', color: TEXT },
   detailLabel: { fontSize: '0.74rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEXT_FAINT, marginTop: '1.1rem', marginBottom: '0.5rem' },
 
   // Elevated "focus panel": the split list/detail workspace
