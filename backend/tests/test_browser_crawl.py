@@ -7,14 +7,37 @@ Playwright or its Chromium binary isn't installed in this environment.
 
 import http.server
 import threading
+from pathlib import Path
 from urllib.parse import parse_qs
 
 import pytest
 
 from app import browser_crawl
 
+
+def _browser_available() -> bool:
+    """True only when Playwright *and* its Chromium binary are usable.
+
+    `browser_crawl.is_available()` only checks that the Python package is
+    importable; an environment that has the package but no downloaded
+    browser (CI before `playwright install`) would otherwise run these
+    tests straight into a launch failure instead of skipping, which is
+    what this module's docstring promises.
+    """
+    if not browser_crawl.is_available():
+        return False
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            return Path(p.chromium.executable_path).exists()
+    except Exception:
+        return False
+
+
 pytestmark = pytest.mark.skipif(
-    not browser_crawl.is_available(), reason="playwright is not installed in this environment"
+    not _browser_available(),
+    reason="playwright or its chromium binary is not installed in this environment",
 )
 
 LOGIN_PAGE = """
